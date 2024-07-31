@@ -150,7 +150,7 @@ public class JumpDetection : MonoBehaviour
 
         // TODO - create intevals from landingHits
         /*
-         * TODO - GIT REPO  
+         * TODO - GIT REPO  -
          * 
          *  jumps targeting the same point can create inconsistent jumpHits resulting in no intervals where they should be1
          *  - possible solution ? only one jumpHit type per edge per group of jumps targeting same point
