@@ -326,4 +326,9 @@ public class BoxJumpTrajectory
             Gizmos.DrawLine(p1, p2);
         }
     }
+
+    public Vector2 getCornerPositionInTime(float time, int corner)
+    {
+        return jumpTrajectories[corner].jumpStart + new Vector2(time * velocity.x, jumpTrajectories[corner].getJumpHeightRelative(time * velocity.x));
+    }
 }

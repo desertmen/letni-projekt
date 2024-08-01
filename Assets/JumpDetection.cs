@@ -37,7 +37,6 @@ public class JumpDetection : MonoBehaviour
         int jumpDirection = (2 * (_SelectedPoint % 2) - 1);
         maxJumpVelocity = new Vector2(jumpDirection * _MaxVelocity.x, _MaxVelocity.y);
 
-
         BoxJumpTrajectory maxBoxJump = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, maxJumpVelocity, gravity);
         Gizmos.color = Color.white;
         maxBoxJump.drawBoundingBoxGizmo(0);
@@ -45,6 +44,7 @@ public class JumpDetection : MonoBehaviour
         List<Vector2> targets = new List<Vector2>();
         Dictionary<Vector2, Tuple<Edge, Polygon>> targetEdgePolyDict = new Dictionary<Vector2, Tuple<Edge, Polygon>>();
 
+        // find targets and create dictionary containing each targets edge and polygon
         foreach(Polygon polygon in polygons)
         {
             foreach(Vector2 point in polygon.points)
@@ -76,6 +76,7 @@ public class JumpDetection : MonoBehaviour
                 }
             }
         }
+        // jumpStart edge and polygon added to dictionary, not needed in targets
         targets.Remove(jumpStart);
 
         JumpGenerator jumpGenerator = new JumpGenerator(gravity);
@@ -92,11 +93,11 @@ public class JumpDetection : MonoBehaviour
                 break;
         }
 
+        // test all targets 
         bool allTargetsHit = true;
         List<List<JumpHit>> landingHitsPerJump = new List<List<JumpHit>>();
         foreach (Vector2 target in targets)
         {
-            List<JumpHit> hitGroup = new List<JumpHit>();
             foreach (Vector2 boxHitCorner in maxBoxJump.getCorners())
             {
                 Vector2 velocity = jumpGenerator.getVelocityByMode(boxHitCorner, target);
@@ -118,7 +119,6 @@ public class JumpDetection : MonoBehaviour
                 List<JumpHit> landingHits = getLandingHits(jumpHits, target, jump);
 
                 landingHitsPerJump.Add(landingHits);
-                hitGroup.AddRange(landingHits);
             }
         }
 
@@ -150,7 +150,7 @@ public class JumpDetection : MonoBehaviour
             }
         }
 
-        //create intevals from landingHits
+        // assign each jumpHit to its polygon
         Dictionary<Polygon, List<JumpHit>> jumpHitsPerPolygon = new Dictionary<Polygon, List<JumpHit>>();
         foreach (List<JumpHit> jumpHits in landingHitsPerJump)
         {
@@ -167,9 +167,11 @@ public class JumpDetection : MonoBehaviour
             }
         }
 
+        // create intervals
         List<Tuple<JumpHit, JumpHit>> allIntervals = new List<Tuple<JumpHit, JumpHit>>();
         foreach(Polygon polygon in jumpHitsPerPolygon.Keys)
         {
+            // assign jumphits to theit walkable chunks
             List<List<int>> walkableChunks = polygon.getWalkableChunks(_MaxAngle);
             Dictionary<List<int>, List<JumpHit>> intervals = new Dictionary<List<int>, List<JumpHit>>();
 
@@ -189,13 +191,19 @@ public class JumpDetection : MonoBehaviour
                         }
                     }
                 }
-            }
+            } 
 
-            // TODO - check left and right corner on hits - better landing interval
+            // create intervals
             foreach (List<JumpHit> chunkHits in intervals.Values)
             {
                 List<Tuple<JumpHit, JumpHit>> intervalsPerChunk = new List<Tuple<JumpHit, JumpHit>>();
-                chunkHits.Sort((JumpHit hit1, JumpHit hit2) => (int)Mathf.Sign(hit2.time - hit1.time));
+
+                chunkHits.Sort((JumpHit hit1, JumpHit hit2) =>
+                {
+                    BoxJumpTrajectory jump1 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit1.velocity, gravity);
+                    BoxJumpTrajectory jump2 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit2.velocity, gravity);
+                    return jump1.getCornerPositionInTime(hit1.time, BoxJumpTrajectory.BOTTOM_LEFT).x.CompareTo(jump2.getCornerPositionInTime(hit2.time, BoxJumpTrajectory.BOTTOM_LEFT).x);
+                });
 
                 JumpHit minHit = null;
                 JumpHit maxHit = null;
@@ -228,6 +236,7 @@ public class JumpDetection : MonoBehaviour
             }
         }
 
+        // remove interval containing jumpstart
         for(int i = 0; i < allIntervals.Count; i++)
         {
             (JumpHit hit1, JumpHit hit2) = allIntervals[i];
@@ -238,7 +247,7 @@ public class JumpDetection : MonoBehaviour
             }
         }
 
-        Debug.Log(allIntervals.Count);
+        // draw intervals
         foreach (Tuple<JumpHit, JumpHit> interval in allIntervals)
         {
             Gizmos.color = Color.cyan;
@@ -251,7 +260,7 @@ public class JumpDetection : MonoBehaviour
             jump1.drawBoundingBoxGizmo(hit1.time * jump1.velocity.x);
             jump2.drawBoundingBoxGizmo(hit2.time * jump2.velocity.x);
             Handles.color = Color.green;
-            Handles.DrawLine(hit1.position, hit2.position, 10);
+            Handles.DrawLine(jump1.getCornerPositionInTime(hit1.time, BoxJumpTrajectory.BOTTOM_RIGHT), jump2.getCornerPositionInTime(hit2.time, BoxJumpTrajectory.BOTTOM_LEFT), 10);
         }
     }
 
