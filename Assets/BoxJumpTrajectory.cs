@@ -15,6 +15,14 @@ public class BoxJumpTrajectory
     public static int TOP_RIGHT= 2;
     public static int TOP_LEFT = 3;
 
+    public static Vector2[] getCorners(Vector2 jumpStart, Vector2 size, int direction)
+    {
+        Vector2 right = direction > 0 ? Vector2.zero : Vector2.right * size;
+        Vector2 left = direction > 0 ? Vector2.left * size : Vector2.zero;
+        Vector2 up = size * Vector2.up;
+        return new Vector2[4] { left + jumpStart, right + jumpStart, right + up + jumpStart, left + up + jumpStart };
+    }
+
     public BoxJumpTrajectory(Vector2 jumpStart, Vector2 size, Vector2 jumpVelocity, float gravity)
     {
         this.velocity = jumpVelocity;

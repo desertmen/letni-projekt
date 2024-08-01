@@ -17,14 +17,24 @@ public class JumpDetection : MonoBehaviour
     [SerializeField] private Vector2 _BoundingBoxSize;
     private static float gravity = -10;// Physics2D.gravity.y;
 
+    private struct TargetInfo
+    {
+        public Vector2 position;
+        public Polygon polygon;
+        public Edge edge;
+
+        public TargetInfo(Vector2 position, Polygon polygon, Edge edge)
+        {
+            this.position = position;
+            this.polygon = polygon;
+            this.edge = edge;
+        }
+    }
+
     private void OnDrawGizmos()
     {
         checkSpeed();
-
-        // draw maximal walkable slope
-        Vector3 pos = new Vector3(0, 5, 0);
-        Gizmos.DrawLine(pos, pos - new Vector3(Mathf.Cos(_MaxAngle * Mathf.Deg2Rad), Mathf.Sin(_MaxAngle * Mathf.Deg2Rad), 0));
-        Gizmos.DrawLine(pos, pos + new Vector3(Mathf.Cos(-_MaxAngle * Mathf.Deg2Rad), Mathf.Sin(-_MaxAngle * Mathf.Deg2Rad), 0));
+        DrawSlopeGizmo(new Vector3(0, 5, 0));
 
         List<Polygon> polygons = getChildrenPolygons();
 
@@ -32,131 +42,83 @@ public class JumpDetection : MonoBehaviour
         _SelectedPoint = Mathf.Clamp(_SelectedPoint, 0, polygons[_SelectedPolygon].getWalkableCornerPoints(_MaxAngle).Count * 2 - 1);
 
         Vector2 jumpStart = polygons[_SelectedPolygon].getJumpPoints(_MaxAngle)[_SelectedPoint];
-        Vector2 maxJumpVelocity;
-
         int jumpDirection = (2 * (_SelectedPoint % 2) - 1);
-        maxJumpVelocity = new Vector2(jumpDirection * _MaxVelocity.x, _MaxVelocity.y);
 
-        BoxJumpTrajectory maxBoxJump = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, maxJumpVelocity, gravity);
+        // draw jump starting point
+        BoxJumpTrajectory maxBoxJump = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, new Vector2(jumpDirection, 0), gravity);
         Gizmos.color = Color.white;
         maxBoxJump.drawBoundingBoxGizmo(0);
 
-        List<Vector2> targets = new List<Vector2>();
-        Dictionary<Vector2, Tuple<Edge, Polygon>> targetEdgePolyDict = new Dictionary<Vector2, Tuple<Edge, Polygon>>();
-
-        // find targets and create dictionary containing each targets edge and polygon
-        foreach(Polygon polygon in polygons)
-        {
-            foreach(Vector2 point in polygon.points)
-            {
-                if (isPointJumpable(maxBoxJump, point) || point == jumpStart)
-                {
-                    targets.Add(point);
-                    bool found = false;
-                    foreach(Edge edge in polygon.edges)
-                    {
-                        Vector2[] edgePoints = polygon.getEdgePoints(edge);
-                        if (edgePoints[0] == point || edgePoints[1] == point)
-                        {
-                            if (!found) 
-                            {
-                                found = true;
-                                targetEdgePolyDict.Add(point, new Tuple<Edge, Polygon>(edge, polygon));
-                            }
-                            else
-                            {
-                                if(polygon.isEdgeWalkable(edge, _MaxAngle))
-                                {
-                                    targetEdgePolyDict[point] = new Tuple<Edge, Polygon>(edge, polygon);
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        // jumpStart edge and polygon added to dictionary, not needed in targets
-        targets.Remove(jumpStart);
-
+        // set up jumpGenerator
         JumpGenerator jumpGenerator = new JumpGenerator(gravity);
         switch (_Mode)
         {
             case JumpGenerator.Mode.DIRECTED_JUMP:
-                jumpGenerator.setModeDirectedJump(maxJumpVelocity); 
+                jumpGenerator.setModeDirectedJump(_MaxVelocity); 
                 break;
             case JumpGenerator.Mode.CONST_X_VARIABLE_Y:
-                jumpGenerator.setModeConstXvariableYJump(maxJumpVelocity.x);
+                jumpGenerator.setModeConstXvariableYJump(_MaxVelocity.x);
                 break;
             case JumpGenerator.Mode.CONST_Y_VARIABLE_X:
-                jumpGenerator.setModeConstYvariableXJump(maxJumpVelocity.y);
+                jumpGenerator.setModeConstYvariableXJump(_MaxVelocity.y);
                 break;
         }
+
+        // find targets
+        List<TargetInfo> targets = getTargetsInfo(jumpStart, jumpDirection, polygons);
+        if (targets.Count == 0)
+            return;
 
         // test all targets 
         bool allTargetsHit = true;
+        TargetInfo jumpStartTarget = targets[0];
         List<List<JumpHit>> landingHitsPerJump = new List<List<JumpHit>>();
-        foreach (Vector2 target in targets)
+        foreach (TargetInfo target in targets)
         {
-            foreach (Vector2 boxHitCorner in maxBoxJump.getCorners())
+            if(target.position == jumpStart)
             {
-                Vector2 velocity = jumpGenerator.getVelocityByMode(boxHitCorner, target);
-
-                if (velocity == Vector2.negativeInfinity || velocity.y < 0)
-                {
-                    allTargetsHit = false;
-                    BoxJumpTrajectory jump1 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, velocity, gravity);
-                    continue;
-                }
-
-                BoxJumpTrajectory jump = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, velocity, gravity);
-                List<JumpHit> jumpHits = testJump(jump, polygons);
-
-                (Edge targetEdge, Polygon targetPolygon)= targetEdgePolyDict[target];
-                
-                prepareJumpHits(target, targetEdge, targetPolygon, jump, boxHitCorner, jumpHits);
-
-                List<JumpHit> landingHits = getLandingHits(jumpHits, target, jump);
-
-                landingHitsPerJump.Add(landingHits);
+                jumpStartTarget = target;
+                continue;
             }
+            allTargetsHit &= testBoxJump(jumpStart, target, jumpGenerator, polygons, ref landingHitsPerJump);
         }
 
         // TODO - all targets bellow starting point hit instead of all targets
+        // test jump down if possible
         if (allTargetsHit)
         {
             Debug.Log("All targets hit! mode: " + _Mode.ToString());
-            List<JumpHit> hitGroup = new List<JumpHit>();
-            foreach (Vector2 boxHitCorner in maxBoxJump.getCorners())
+            testBoxJump(jumpStart, jumpStartTarget, jumpGenerator, polygons, ref landingHitsPerJump);
+        }
+
+        // create intervals
+        List<Tuple<JumpHit, JumpHit>> allIntervals = new List<Tuple<JumpHit, JumpHit>>();
+        Dictionary<Polygon, List<JumpHit>> jumpHitsPerPolygon = getHitsPerPolygon(landingHitsPerJump);
+        foreach(Polygon polygon in jumpHitsPerPolygon.Keys)
+        {
+            // assign jumphits to walkable chunks they hit
+            List<List<int>> walkableChunks = polygon.getWalkableChunks(_MaxAngle);
+            Dictionary<List<int>, List<JumpHit>> jumpHitsPerWalkableChunk = getJumpHitsPerWalkableChunks(jumpHitsPerPolygon[polygon], walkableChunks);
+
+            // create intervals
+            foreach (List<JumpHit> chunkHits in jumpHitsPerWalkableChunk.Values)
             {
-                Vector2 velocity = jumpGenerator.getVelocityByMode(boxHitCorner, jumpStart);
-
-                if (velocity == Vector2.negativeInfinity || velocity.y < 0)
-                {
-                    allTargetsHit = false;
-                    continue;
-                }
-
-                BoxJumpTrajectory jump = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, velocity, gravity);
-                List<JumpHit> jumpHits = testJump(jump, polygons);
-
-                (Edge targetEdge, Polygon targetPolygon) = targetEdgePolyDict[jumpStart];
-
-                prepareJumpHits(jumpStart, targetEdge, targetPolygon, jump, boxHitCorner, jumpHits);
-
-                List<JumpHit> landingHits = getLandingHits(jumpHits, jumpStart, jump);
-                landingHitsPerJump.Add(landingHits);
-                hitGroup.AddRange(landingHits);
+                List<Tuple<JumpHit, JumpHit>> intervalsPerChunk = getIntervalsFromHits(chunkHits, jumpStart);
+                allIntervals.AddRange(intervalsPerChunk);
             }
         }
 
-        // assign each jumpHit to its polygon
+        drawIntervals(allIntervals, jumpStart);
+    }
+
+    private Dictionary<Polygon, List<JumpHit>> getHitsPerPolygon(List<List<JumpHit>> landingHitsPerJump)
+    {
         Dictionary<Polygon, List<JumpHit>> jumpHitsPerPolygon = new Dictionary<Polygon, List<JumpHit>>();
         foreach (List<JumpHit> jumpHits in landingHitsPerJump)
         {
-            foreach(JumpHit hit in jumpHits)
+            foreach (JumpHit hit in jumpHits)
             {
-                if(!jumpHitsPerPolygon.TryGetValue(hit.polygon, out List<JumpHit> polyHitList))
+                if (!jumpHitsPerPolygon.TryGetValue(hit.polygon, out List<JumpHit> polyHitList))
                 {
                     jumpHitsPerPolygon.Add(hit.polygon, new List<JumpHit> { hit });
                 }
@@ -166,102 +128,101 @@ public class JumpDetection : MonoBehaviour
                 }
             }
         }
+        return jumpHitsPerPolygon;
+    }
 
-        // create intervals
-        List<Tuple<JumpHit, JumpHit>> allIntervals = new List<Tuple<JumpHit, JumpHit>>();
-        foreach(Polygon polygon in jumpHitsPerPolygon.Keys)
+
+    // creates intervals base on x position of BL corner of bounding box at the hit time
+    private List<Tuple<JumpHit, JumpHit>> getIntervalsFromHits(List<JumpHit> chunkHits, Vector2 jumpStart)
+    {
+        List<Tuple<JumpHit, JumpHit>> intervalsPerChunk = new List<Tuple<JumpHit, JumpHit>>();
+
+        chunkHits.Sort((JumpHit hit1, JumpHit hit2) =>
         {
-            // assign jumphits to theit walkable chunks
-            List<List<int>> walkableChunks = polygon.getWalkableChunks(_MaxAngle);
-            Dictionary<List<int>, List<JumpHit>> intervals = new Dictionary<List<int>, List<JumpHit>>();
+            BoxJumpTrajectory jump1 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit1.velocity, gravity);
+            BoxJumpTrajectory jump2 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit2.velocity, gravity);
+            return jump1.getCornerPositionInTime(hit1.time, BoxJumpTrajectory.BOTTOM_LEFT).x.CompareTo(jump2.getCornerPositionInTime(hit2.time, BoxJumpTrajectory.BOTTOM_LEFT).x);
+        });
 
-            foreach(JumpHit hit in jumpHitsPerPolygon[polygon])
+        JumpHit minHit = null;
+        JumpHit maxHit = null;
+        for (int i = 0; i < chunkHits.Count; i++)
+        {
+            if (!chunkHits[i].isReachable)
             {
-                foreach(List<int> walkableChunk in walkableChunks)
+                if (minHit != null && maxHit != null)
                 {
-                    if(walkableChunk.Contains(hit.edge.Item1) || walkableChunk.Contains(hit.edge.Item2))
-                    {
-                        if(intervals.TryGetValue(walkableChunk, out List<JumpHit> hitsPerChunk))
-                        {
-                            hitsPerChunk.Add(hit);
-                        }
-                        else
-                        {
-                            intervals.Add(walkableChunk, new List<JumpHit> { hit });
-                        }
-                    }
+                    if(Vector2.Distance(minHit.position, jumpStart) > 0.0001f && Vector2.Distance(maxHit.position, jumpStart) > 0.0001f)
+                        intervalsPerChunk.Add(new Tuple<JumpHit, JumpHit>(minHit, maxHit));
                 }
-            } 
-
-            // create intervals
-            foreach (List<JumpHit> chunkHits in intervals.Values)
+                minHit = null;
+                maxHit = null;
+            }
+            else
             {
-                List<Tuple<JumpHit, JumpHit>> intervalsPerChunk = new List<Tuple<JumpHit, JumpHit>>();
+                if (minHit == null)
+                    minHit = chunkHits[i];
+                else
+                    maxHit = chunkHits[i];
 
-                chunkHits.Sort((JumpHit hit1, JumpHit hit2) =>
+                if (maxHit != null && i == chunkHits.Count - 1)
                 {
-                    BoxJumpTrajectory jump1 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit1.velocity, gravity);
-                    BoxJumpTrajectory jump2 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit2.velocity, gravity);
-                    return jump1.getCornerPositionInTime(hit1.time, BoxJumpTrajectory.BOTTOM_LEFT).x.CompareTo(jump2.getCornerPositionInTime(hit2.time, BoxJumpTrajectory.BOTTOM_LEFT).x);
-                });
+                    if (Vector2.Distance(minHit.position, jumpStart) > 0.0001f && Vector2.Distance(maxHit.position, jumpStart) > 0.0001f)
+                        intervalsPerChunk.Add(new Tuple<JumpHit, JumpHit>(minHit, maxHit));
+                }
+            }
+        }
+        return intervalsPerChunk;
+    }
 
-                JumpHit minHit = null;
-                JumpHit maxHit = null;
-                for(int i = 0; i < chunkHits.Count; i++)
+    // assign jumphits to theit walkable chunks
+    private Dictionary<List<int>, List<JumpHit>> getJumpHitsPerWalkableChunks(List<JumpHit> jumpHitsPerPolygon, List<List<int>> walkableChunks)
+    {
+        Dictionary<List<int>, List<JumpHit>> jumpHitsPerWalkableChunk = new Dictionary<List<int>, List<JumpHit>>();
+
+        foreach (JumpHit hit in jumpHitsPerPolygon)
+        {
+            foreach (List<int> walkableChunk in walkableChunks)
+            {
+                if (walkableChunk.Contains(hit.edge.Item1) || walkableChunk.Contains(hit.edge.Item2))
                 {
-                    if (!chunkHits[i].isReachable)
+                    if (jumpHitsPerWalkableChunk.TryGetValue(walkableChunk, out List<JumpHit> hitsPerChunk))
                     {
-                        if(minHit != null && maxHit != null)
-                        {
-                            intervalsPerChunk.Add(new Tuple<JumpHit, JumpHit>(minHit, maxHit));
-                        }
-                        minHit = null;
-                        maxHit = null;
+                        hitsPerChunk.Add(hit);
                     }
                     else
                     {
-                        if (minHit == null)
-                            minHit = chunkHits[i];
-                        else
-                            maxHit = chunkHits[i];
-
-                        if(maxHit != null && i == chunkHits.Count - 1)
-                        {
-                            intervalsPerChunk.Add(new Tuple<JumpHit, JumpHit>(minHit, maxHit));
-                        }
+                        jumpHitsPerWalkableChunk.Add(walkableChunk, new List<JumpHit> { hit });
                     }
                 }
-                allIntervals.AddRange(intervalsPerChunk);
-
             }
         }
+        return jumpHitsPerWalkableChunk;
+    }
 
-        // remove interval containing jumpstart
-        for(int i = 0; i < allIntervals.Count; i++)
+    // returns false if target cant be reached with jumpGenerators current configuration
+    private bool testBoxJump(Vector2 jumpStart, TargetInfo target, JumpGenerator jumpGenerator, List<Polygon> polygons, ref List<List<JumpHit>> landingHitsPerJump)
+    {
+        Vector2[] jumpStartCorners = BoxJumpTrajectory.getCorners(jumpStart, _BoundingBoxSize, (int)Mathf.Sign(target.position.x - jumpStart.x));
+        foreach (Vector2 boxHitCorner in jumpStartCorners)
         {
-            (JumpHit hit1, JumpHit hit2) = allIntervals[i];
-            if(Vector2.Distance(hit1.position, jumpStart) < 0.0001f || Vector2.Distance(hit2.position, jumpStart) < 0.0001f)
+            Vector2 velocity = jumpGenerator.getVelocityByMode(boxHitCorner, target.position);
+
+            if (velocity == Vector2.negativeInfinity || velocity.y < 0)
             {
-                allIntervals.RemoveAt(i);
-                break;
+                return false;
             }
-        }
 
-        // draw intervals
-        foreach (Tuple<JumpHit, JumpHit> interval in allIntervals)
-        {
-            Gizmos.color = Color.cyan;
-            (JumpHit hit1, JumpHit hit2) = interval;
-            BoxJumpTrajectory jump1 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit1.velocity, gravity);
-            BoxJumpTrajectory jump2 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit2.velocity, gravity);
-            jump1.drawTrajectoryGizmo(11, 0.1f);
-            jump2.drawTrajectoryGizmo(11, 0.1f);
-            Gizmos.color = Color.green;
-            jump1.drawBoundingBoxGizmo(hit1.time * jump1.velocity.x);
-            jump2.drawBoundingBoxGizmo(hit2.time * jump2.velocity.x);
-            Handles.color = Color.green;
-            Handles.DrawLine(jump1.getCornerPositionInTime(hit1.time, BoxJumpTrajectory.BOTTOM_RIGHT), jump2.getCornerPositionInTime(hit2.time, BoxJumpTrajectory.BOTTOM_LEFT), 10);
+            BoxJumpTrajectory jump = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, velocity, gravity);
+            List<JumpHit> jumpHits = testJump(jump, polygons);
+
+            prepareJumpHits(target.position, target.edge, target.polygon, jump, boxHitCorner, jumpHits);
+
+            List<JumpHit> landingHits = getLandingHits(jumpHits, target.position, jump);
+
+            landingHitsPerJump.Add(landingHits);
         }
+        return true;
     }
 
     // returns list of hits where box it touching edge with its bottom
@@ -290,6 +251,47 @@ public class JumpDetection : MonoBehaviour
             }
         }
         return landingHits;
+    }
+
+    private List<TargetInfo> getTargetsInfo(Vector2 jumpStart, int jumpDirection, List<Polygon> polygons)
+    {
+        List<TargetInfo> targets = new List<TargetInfo>();
+
+        // find targets and create dictionary containing each targets edge and polygon
+        foreach (Polygon polygon in polygons)
+        {
+            foreach (Vector2 point in polygon.points)
+            {
+                if (isPointJumpable(jumpStart, point, jumpDirection) || point == jumpStart)
+                {
+                    bool found = false;
+                    Edge targetEdge = null;
+                    foreach (Edge edge in polygon.edges)
+                    {
+                        Vector2[] edgePoints = polygon.getEdgePoints(edge);
+                        if (edgePoints[0] == point || edgePoints[1] == point)
+                        {
+                            // assign walkable edge to target if possible
+                            if (!found)
+                            {
+                                found = true;
+                                targetEdge = edge;
+                            }
+                            else
+                            {
+                                if (polygon.isEdgeWalkable(edge, _MaxAngle))
+                                {
+                                    targetEdge = edge;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    targets.Add(new TargetInfo(point, polygon, targetEdge));
+                }
+            }
+        }
+        return targets;
     }
 
     private List<JumpHit> testJump(BoxJumpTrajectory jump, List<Polygon> polygons)
@@ -357,63 +359,6 @@ public class JumpDetection : MonoBehaviour
         }
     }
 
-    private void drawJumpTrajectory(JumpTrajectory curJump, Vector2 target, List<JumpHit> hits, Color jumpColor)
-    {
-        Gizmos.color = jumpColor;
-        Gizmos.DrawWireSphere(target, 0.2f);
-        curJump.drawGizmo(10, 0.1f);
-        foreach (JumpHit hit in hits)
-        {
-            Gizmos.color = hit.isReachable ? Color.green : Color.red;
-            Gizmos.DrawSphere(hit.position, 0.1f);
-        }
-    }
-
-    private List<JumpHit> testJump(JumpTrajectory jump, Vector2 target, List<Polygon> collidablePolygons, Dictionary<Polygon, List<Edge>> collidableEdges)
-    {
-        Vector2 firstHit = Vector2.positiveInfinity;
-        List<JumpHit> hits = new List<JumpHit>();
-
-        foreach (Polygon polygon in collidablePolygons)
-        {
-            collidableEdges.TryGetValue(polygon, out List<Edge> edges);
-            foreach (Edge edge in edges)
-            {
-                Vector2[] edgePoints = polygon.getEdgePoints(edge);
-
-                if (jump.collidesWithEdge(edgePoints[0], edgePoints[1], out Vector2 coll1, out Vector2 coll2))
-                {
-                    if (Vector2.Distance(coll1, jump.jumpStart) > 0.001f && coll1.x != float.NegativeInfinity)
-                    {
-                        if (polygon.isEdgeWalkable(edge, _MaxAngle))
-                        {
-                            hits.Add(new JumpHit(coll1, jump.velocity, 0, polygon, edge));
-                        }
-                        if (firstHit == Vector2.positiveInfinity || (Mathf.Abs(coll1.x - jump.jumpStart.x) < Mathf.Abs(firstHit.x - jump.jumpStart.x) && Vector2.Distance(target, coll1) > 0.001f))
-                        {
-                            firstHit = coll1;
-                        }
-                    }
-                    if (Vector2.Distance(coll2, jump.jumpStart) > 0.001f && coll2.x != float.NegativeInfinity)
-                    {
-                        if (polygon.isEdgeWalkable(edge, _MaxAngle))
-                        {
-                            hits.Add(new JumpHit(coll2, jump.velocity, 0, polygon, edge));
-                        }
-                        if (firstHit == Vector2.positiveInfinity || (Mathf.Abs(coll2.x - jump.jumpStart.x) < Mathf.Abs(firstHit.x - jump.jumpStart.x) && Vector2.Distance(target, coll2) > 0.001f))
-                            firstHit = coll2;
-                    }
-                }
-            }
-        }
-        foreach(JumpHit hit in hits)
-        {
-            hit.isReachable = Mathf.Abs(hit.position.x - jump.jumpStart.x) < Mathf.Abs(firstHit.x - jump.jumpStart.x) || hit.position == firstHit;
-        }
-
-        return hits;
-    }
-
     private void checkSpeed()
     {
         if (Mathf.Abs(_MaxVelocity.x) == 0)
@@ -447,35 +392,32 @@ public class JumpDetection : MonoBehaviour
         }
         return polygons;
     }
-
-    private bool isPointJumpable(Vector2 point, Vector2 jumpStart, Vector2 jumpVelocity)
+    private bool isPointJumpable(Vector2 jumpStart, Vector2 point, int direction)
     {
-        float x = point.x - jumpStart.x;
-        if(Mathf.Sign(x) != Mathf.Sign(jumpVelocity.x) || Mathf.Abs(x) < 0.00001f)
-        {
-            return false;
-        }
-
-        float peakTime = jumpVelocity.y / -gravity;
-        float peakX = jumpVelocity.x * peakTime;
-        // point is between peak and start X
-        if(Mathf.Sign(peakX + jumpStart.x - point.x) != Mathf.Sign(jumpStart.x - point.x))
-        {
-            float peakY = jumpVelocity.y * peakTime + 0.5f * gravity * peakTime * peakTime;
-            return peakY + jumpStart.y > point.y; 
-        }
-        // point is after peak X
-        float jumpY = jumpVelocity.y * x / jumpVelocity.x + 0.5f * gravity * (x / jumpVelocity.x) * (x / jumpVelocity.x);
-        return jumpY + jumpStart.y > point.y;
+        return Mathf.Sign(point.x - jumpStart.x) == Mathf.Sign(direction) && Mathf.Abs(jumpStart.x - point.x) > 0.001f;
     }
 
-    private bool isPointJumpable(BoxJumpTrajectory boxJump, Vector2 point)
+    private void DrawSlopeGizmo(Vector3 pos)
     {
-        /*
-        JumpTrajectory left = boxJump.getSingleTrajectory(BoxJumpTrajectory.BOTTOM_LEFT);
-        JumpTrajectory right = boxJump.getSingleTrajectory(BoxJumpTrajectory.BOTTOM_RIGHT);
-        return isPointJumpable(point, left.jumpStart, left.velocity) && isPointJumpable(point, right.jumpStart, right.velocity);
-        */
-        return Mathf.Sign(point.x - boxJump.jumpStart.x) == Mathf.Sign(boxJump.velocity.x) && Mathf.Abs(boxJump.jumpStart.x - point.x) > 0.001f;
+        Gizmos.DrawLine(pos, pos - new Vector3(Mathf.Cos(_MaxAngle * Mathf.Deg2Rad), Mathf.Sin(_MaxAngle * Mathf.Deg2Rad), 0));
+        Gizmos.DrawLine(pos, pos + new Vector3(Mathf.Cos(-_MaxAngle * Mathf.Deg2Rad), Mathf.Sin(-_MaxAngle * Mathf.Deg2Rad), 0));
     }
+    private void drawIntervals(List<Tuple<JumpHit, JumpHit>> allIntervals, Vector2 jumpStart)
+    {
+        foreach (Tuple<JumpHit, JumpHit> interval in allIntervals)
+        {
+            Gizmos.color = Color.cyan;
+            (JumpHit hit1, JumpHit hit2) = interval;
+            BoxJumpTrajectory jump1 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit1.velocity, gravity);
+            BoxJumpTrajectory jump2 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit2.velocity, gravity);
+            jump1.drawTrajectoryGizmo(11, 0.1f);
+            jump2.drawTrajectoryGizmo(11, 0.1f);
+            Gizmos.color = Color.green;
+            jump1.drawBoundingBoxGizmo(hit1.time * jump1.velocity.x);
+            jump2.drawBoundingBoxGizmo(hit2.time * jump2.velocity.x);
+            Handles.color = Color.green;
+            Handles.DrawLine(jump1.getCornerPositionInTime(hit1.time, BoxJumpTrajectory.BOTTOM_RIGHT), jump2.getCornerPositionInTime(hit2.time, BoxJumpTrajectory.BOTTOM_LEFT), 10);
+        }
+    }
+
 }
