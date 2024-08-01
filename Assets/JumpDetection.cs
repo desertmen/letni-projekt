@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -40,10 +39,6 @@ public class JumpDetection : MonoBehaviour
 
 
         BoxJumpTrajectory maxBoxJump = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, maxJumpVelocity, gravity);
-        /*
-        Gizmos.color = Color.green;
-        maxBoxJump.drawTrajectoryGizmo(10, 0.1f);
-        */
         Gizmos.color = Color.white;
         maxBoxJump.drawBoundingBoxGizmo(0);
 
@@ -98,10 +93,10 @@ public class JumpDetection : MonoBehaviour
         }
 
         bool allTargetsHit = true;
-        // landing hit = hit where box is touching edge with its bottom
         List<List<JumpHit>> landingHitsPerJump = new List<List<JumpHit>>();
         foreach (Vector2 target in targets)
         {
+            List<JumpHit> hitGroup = new List<JumpHit>();
             foreach (Vector2 boxHitCorner in maxBoxJump.getCorners())
             {
                 Vector2 velocity = jumpGenerator.getVelocityByMode(boxHitCorner, target);
@@ -109,6 +104,7 @@ public class JumpDetection : MonoBehaviour
                 if (velocity == Vector2.negativeInfinity || velocity.y < 0)
                 {
                     allTargetsHit = false;
+                    BoxJumpTrajectory jump1 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, velocity, gravity);
                     continue;
                 }
 
@@ -116,17 +112,21 @@ public class JumpDetection : MonoBehaviour
                 List<JumpHit> jumpHits = testJump(jump, polygons);
 
                 (Edge targetEdge, Polygon targetPolygon)= targetEdgePolyDict[target];
+                
                 prepareJumpHits(target, targetEdge, targetPolygon, jump, boxHitCorner, jumpHits);
 
-                landingHitsPerJump.Add(getLandingHits(jumpHits, target, jump));
+                List<JumpHit> landingHits = getLandingHits(jumpHits, target, jump);
+
+                landingHitsPerJump.Add(landingHits);
+                hitGroup.AddRange(landingHits);
             }
         }
 
+        // TODO - all targets bellow starting point hit instead of all targets
         if (allTargetsHit)
         {
-            // TODO - check min 
             Debug.Log("All targets hit! mode: " + _Mode.ToString());
-
+            List<JumpHit> hitGroup = new List<JumpHit>();
             foreach (Vector2 boxHitCorner in maxBoxJump.getCorners())
             {
                 Vector2 velocity = jumpGenerator.getVelocityByMode(boxHitCorner, jumpStart);
@@ -141,21 +141,16 @@ public class JumpDetection : MonoBehaviour
                 List<JumpHit> jumpHits = testJump(jump, polygons);
 
                 (Edge targetEdge, Polygon targetPolygon) = targetEdgePolyDict[jumpStart];
+
                 prepareJumpHits(jumpStart, targetEdge, targetPolygon, jump, boxHitCorner, jumpHits);
 
-                landingHitsPerJump.Add(getLandingHits(jumpHits, jumpStart, jump));
+                List<JumpHit> landingHits = getLandingHits(jumpHits, jumpStart, jump);
+                landingHitsPerJump.Add(landingHits);
+                hitGroup.AddRange(landingHits);
             }
         }
-        
 
-        // TODO - create intevals from landingHits
-        /*
-         * TODO - GIT REPO  -
-         * 
-         *  jumps targeting the same point can create inconsistent jumpHits resulting in no intervals where they should be1
-         *  - possible solution ? only one jumpHit type per edge per group of jumps targeting same point
-         *  - reachable jumpHits are more significant
-         */
+        //create intevals from landingHits
         Dictionary<Polygon, List<JumpHit>> jumpHitsPerPolygon = new Dictionary<Polygon, List<JumpHit>>();
         foreach (List<JumpHit> jumpHits in landingHitsPerJump)
         {
@@ -169,12 +164,9 @@ public class JumpDetection : MonoBehaviour
                 {
                     polyHitList.Add(hit);
                 }
-                Gizmos.color = hit.isReachable ? Color.green : Color.red;
-                Gizmos.DrawSphere(hit.position, 0.1f);
             }
         }
 
-        // TODO - create intervals of jumps
         List<Tuple<JumpHit, JumpHit>> allIntervals = new List<Tuple<JumpHit, JumpHit>>();
         foreach(Polygon polygon in jumpHitsPerPolygon.Keys)
         {
@@ -200,11 +192,10 @@ public class JumpDetection : MonoBehaviour
             }
 
             // TODO - check left and right corner on hits - better landing interval
-            // TODO - draw interval trajectory
             foreach (List<JumpHit> chunkHits in intervals.Values)
             {
                 List<Tuple<JumpHit, JumpHit>> intervalsPerChunk = new List<Tuple<JumpHit, JumpHit>>();
-                chunkHits.Sort((JumpHit hit1, JumpHit hit2) => (int)Mathf.Sign(hit2.position.x - hit1.position.x));
+                chunkHits.Sort((JumpHit hit1, JumpHit hit2) => (int)Mathf.Sign(hit2.time - hit1.time));
 
                 JumpHit minHit = null;
                 JumpHit maxHit = null;
@@ -277,7 +268,7 @@ public class JumpDetection : MonoBehaviour
 
             if (hit.polygon.isEdgeWalkable(hit.edge, _MaxAngle) && boxTouchesEdgeWithBottom)
             {
-                if (hit == jumpHits[0] || (hit == jumpHits[1] && jumpHits[0].position == target))
+                if (hit == jumpHits[0] || (hit == jumpHits[1] && Vector2.Distance(jumpHits[0].position, target) < 0.0001f))
                 {
                     hit.isReachable = true;
                     landingHits.Add(hit);
@@ -344,6 +335,7 @@ public class JumpDetection : MonoBehaviour
         {
             JumpHit hit = jumpHits[j];
             Tuple<Polygon, Edge> hashingTuple = new Tuple<Polygon, Edge>(hit.polygon, hit.edge);
+
             if (visited.Contains(hashingTuple))
             {
                 jumpHits.RemoveAt(j);
