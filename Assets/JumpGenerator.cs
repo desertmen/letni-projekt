@@ -198,7 +198,7 @@ public class JumpGenerator
         float yVelocity = (diff.y / t - 0.5f * gravity * t);
         return new Vector2(xVelocity, yVelocity);
     }
-
+    
     public JumpTrajectory getJumpWithTangent(Vector2 jumpStart, Vector2 target, Vector2 tangent)
     {
         Vector2 diff = target - jumpStart;

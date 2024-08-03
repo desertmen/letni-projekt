@@ -56,12 +56,12 @@ public class Polygon
         }
     }
 
-    public Vector2[] getEdgePoints(Tuple<int, int> edge)
+    public Vector2[] getEdgePoints(Edge edge)
     {
         return new Vector2[2] { points[edge.Item1], points[edge.Item2] };
     }
 
-    public Vector2 getEdgeNormal(Tuple<int, int> edge)
+    public Vector2 getEdgeNormal(Edge edge)
     {
         Vector2[] edgePoints = getEdgePoints(edge);
         Vector2 dir = edgePoints[0] - edgePoints[1];
@@ -69,7 +69,7 @@ public class Polygon
     }
 
     // maxAngle in degres
-    public bool isEdgeWalkable(Tuple<int, int> edge, float maxAngle)
+    public bool isEdgeWalkable(Edge edge, float maxAngle)
     {
         float angle = Vector2.Angle(getEdgeNormal(edge), Vector2.up);
         if (angle <= maxAngle)
@@ -92,7 +92,7 @@ public class Polygon
             walkableEdges2[i] = -1;
         }
 
-        foreach(Tuple<int, int> edge in edges)
+        foreach(Edge edge in edges)
         {
             if(isEdgeWalkable(edge, maxAngle))
             {
@@ -142,7 +142,7 @@ public class Polygon
             walkableEdges2[i] = -1;
         }
 
-        foreach (Tuple<int, int> edge in edges)
+        foreach (Edge edge in edges)
         {
             if (isEdgeWalkable(edge, maxAngle))
             {

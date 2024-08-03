@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEditor;
+using UnityEditor.PackageManager;
 using UnityEngine;
+using UnityEngine.Experimental.AI;
 
 public class JumpDetection : MonoBehaviour
 {
@@ -9,9 +12,6 @@ public class JumpDetection : MonoBehaviour
     [SerializeField] [Range(0, 89)] private float _MaxAngle;
     [SerializeField] private int _SelectedPoint;
     [SerializeField] private int _SelectedPolygon;
-    [SerializeField] private int _SelectedJump;
-    [SerializeField] private bool _ShowNormals;
-    [SerializeField] private bool _ShowWalkable;
     [SerializeField] private JumpGenerator.Mode _Mode;
 
     [SerializeField] private Vector2 _BoundingBoxSize;
@@ -33,8 +33,8 @@ public class JumpDetection : MonoBehaviour
 
     private void OnDrawGizmos()
     {
+
         checkSpeed();
-        DrawSlopeGizmo(new Vector3(0, 5, 0));
 
         List<Polygon> polygons = getChildrenPolygons();
 
@@ -43,58 +43,70 @@ public class JumpDetection : MonoBehaviour
 
         Vector2 jumpStart = polygons[_SelectedPolygon].getJumpPoints(_MaxAngle)[_SelectedPoint];
         int jumpDirection = (2 * (_SelectedPoint % 2) - 1);
+        jumpStart = allignJumpStart(jumpStart, _BoundingBoxSize, jumpDirection, polygons[_SelectedPolygon]);
 
         // draw jump starting point
-        BoxJumpTrajectory maxBoxJump = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, new Vector2(jumpDirection, 0), gravity);
         Gizmos.color = Color.white;
-        maxBoxJump.drawBoundingBoxGizmo(0);
+        Vector2[] corners = BoxJumpTrajectory.getCorners(jumpStart, _BoundingBoxSize, jumpDirection);
+        for(int i = 0; i < corners.Length; i++)
+        {
+            Gizmos.DrawLine(corners[i], corners[(i + 1) % corners.Length]);
+        }
 
         // set up jumpGenerator
         JumpGenerator jumpGenerator = new JumpGenerator(gravity);
         switch (_Mode)
         {
             case JumpGenerator.Mode.DIRECTED_JUMP:
-                jumpGenerator.setModeDirectedJump(_MaxVelocity); 
+                jumpGenerator.setModeDirectedJump(new Vector2(_MaxVelocity.x * jumpDirection, _MaxVelocity.y)); 
                 break;
             case JumpGenerator.Mode.CONST_X_VARIABLE_Y:
-                jumpGenerator.setModeConstXvariableYJump(_MaxVelocity.x);
+                jumpGenerator.setModeConstXvariableYJump(_MaxVelocity.x * jumpDirection);
                 break;
             case JumpGenerator.Mode.CONST_Y_VARIABLE_X:
                 jumpGenerator.setModeConstYvariableXJump(_MaxVelocity.y);
                 break;
         }
 
+        List<Tuple<JumpHit, JumpHit>> allIntervals = findJumps(jumpStart, jumpDirection, polygons, jumpGenerator);
+
+        DrawSlopeGizmo(new Vector3(0, 5, 0));
+
+        drawIntervals(allIntervals, jumpStart);
+    }
+
+    private List<Tuple<JumpHit, JumpHit>> findJumps(Vector2 jumpStart, int jumpDirection, List<Polygon> polygons, JumpGenerator jumpGenerator)
+    {
+        List<Tuple<JumpHit, JumpHit>> allIntervals = new List<Tuple<JumpHit, JumpHit>>();
+
         // find targets
         List<TargetInfo> targets = getTargetsInfo(jumpStart, jumpDirection, polygons);
         if (targets.Count == 0)
-            return;
+            return allIntervals;
 
         // test all targets 
-        bool allTargetsHit = true;
+        bool allTargetsBellowHit = true;
         TargetInfo jumpStartTarget = targets[0];
         List<List<JumpHit>> landingHitsPerJump = new List<List<JumpHit>>();
         foreach (TargetInfo target in targets)
         {
-            if(target.position == jumpStart)
+            if (target.position == jumpStart)
             {
                 jumpStartTarget = target;
                 continue;
             }
-            allTargetsHit &= testBoxJump(jumpStart, target, jumpGenerator, polygons, ref landingHitsPerJump);
+            //allTargetsHit &= testBoxJump(jumpStart, target, jumpGenerator, polygons, ref landingHitsPerJump);
+            allTargetsBellowHit &= testBoxJump(jumpStart, target, jumpGenerator, polygons, ref landingHitsPerJump) || target.position.y > jumpStart.y;
         }
-
-        // TODO - all targets bellow starting point hit instead of all targets
         // test jump down if possible
-        if (allTargetsHit)
+        if (allTargetsBellowHit)
         {
-            Debug.Log("All targets hit! mode: " + _Mode.ToString());
             testBoxJump(jumpStart, jumpStartTarget, jumpGenerator, polygons, ref landingHitsPerJump);
         }
 
         // create intervals
-        List<Tuple<JumpHit, JumpHit>> allIntervals = new List<Tuple<JumpHit, JumpHit>>();
         Dictionary<Polygon, List<JumpHit>> jumpHitsPerPolygon = getHitsPerPolygon(landingHitsPerJump);
-        foreach(Polygon polygon in jumpHitsPerPolygon.Keys)
+        foreach (Polygon polygon in jumpHitsPerPolygon.Keys)
         {
             // assign jumphits to walkable chunks they hit
             List<List<int>> walkableChunks = polygon.getWalkableChunks(_MaxAngle);
@@ -108,7 +120,7 @@ public class JumpDetection : MonoBehaviour
             }
         }
 
-        drawIntervals(allIntervals, jumpStart);
+        return allIntervals;
     }
 
     private Dictionary<Polygon, List<JumpHit>> getHitsPerPolygon(List<List<JumpHit>> landingHitsPerJump)
@@ -131,6 +143,43 @@ public class JumpDetection : MonoBehaviour
         return jumpHitsPerPolygon;
     }
 
+    private Vector2 allignJumpStart(Vector2 jumpStart, Vector2 bboxSize, int direction, Polygon startPolygon)
+    {
+        Vector2[] corners = BoxJumpTrajectory.getCorners(jumpStart, bboxSize, direction);
+
+        bool collides = false;
+        Vector2 highestCollision = Vector2.negativeInfinity;
+
+        foreach(Edge edge in startPolygon.edges)
+        {
+            Vector2[] edgePoints = startPolygon.getEdgePoints(edge);
+            Vector2 a1 = edgePoints[0];
+            Vector2 a2 = edgePoints[1];
+            for(int i = 0; i < corners.Length; i++)
+            {
+                Vector2 b1 = corners[i];
+                Vector2 b2 = corners[(i + 1) % corners.Length];
+
+                float tb = ((b1.y - a1.y) * (a2.x - a1.x) - (b1.x - a1.x) * (a2.y - a1.y)) / ((b2.x - b1.x) * (a2.y - a1.y) - (b2.y - b1.y) * (a2.x - a1.x));
+                float ta = (b1.x + tb * (b2.x - b1.x) - a1.x) / (a2.x - a1.x);
+
+                if(ta >= 0 && ta <= 1 && tb >= 0 && tb <= 1) 
+                {
+                    collides = true;
+                    Vector2 coll = a1 + (a2 - a1) * ta;
+                    if (highestCollision.y < coll.y)
+                        highestCollision = coll;
+                }
+            }
+        }
+
+        if (collides)
+        {
+            jumpStart.y = highestCollision.y;
+        }
+
+        return jumpStart;
+    }
 
     // creates intervals base on x position of BL corner of bounding box at the hit time
     private List<Tuple<JumpHit, JumpHit>> getIntervalsFromHits(List<JumpHit> chunkHits, Vector2 jumpStart)
@@ -215,7 +264,6 @@ public class JumpDetection : MonoBehaviour
 
             BoxJumpTrajectory jump = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, velocity, gravity);
             List<JumpHit> jumpHits = testJump(jump, polygons);
-
             prepareJumpHits(target.position, target.edge, target.polygon, jump, boxHitCorner, jumpHits);
 
             List<JumpHit> landingHits = getLandingHits(jumpHits, target.position, jump);

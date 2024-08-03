@@ -795,13 +795,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _MaxVelocity: {x: 5, y: 7}
-  _MaxAngle: 41.8
+  _MaxAngle: 42.6
   _SelectedPoint: 1
   _SelectedPolygon: 0
-  _SelectedJump: 2
-  _ShowNormals: 0
-  _ShowWalkable: 0
-  _Mode: 2
+  _Mode: 0
   _BoundingBoxSize: {x: 0.5, y: 0.5}
 --- !u!4 &1919726406
 Transform:
