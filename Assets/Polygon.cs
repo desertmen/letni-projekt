@@ -22,6 +22,8 @@ public class Polygon
     public List<Vector2> points;
     // edges go in clocwise direction
     public List<Edge> edges;
+
+    public Vector2 position;
     public Polygon(BoxCollider2D boxCollider)
     {
         Vector2 center = boxCollider.bounds.center;
@@ -32,10 +34,13 @@ public class Polygon
                                         //TR                  BR                 BL                 TL
         points = new List<Vector2> { center + extends, center + extends2, center - extends, center - extends2 };
         edges = new List<Edge> { new Edge(0, 1, this), new Edge(1, 2, this), new Edge(2, 3, this), new Edge(3, 0, this) };
+
+        position = boxCollider.transform.position;
     }
 
     public Polygon(PolygonCollider2D collider, int path = 0)
     {
+        position = collider.transform.position;
         points = collider.GetPath(path).ToList<Vector2>();
         for (int i = 0; i < points.Count; i++)
         {

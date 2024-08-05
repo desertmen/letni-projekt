@@ -1,10 +1,7 @@
 using System;
 using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEditor;
-using UnityEditor.PackageManager;
 using UnityEngine;
-using UnityEngine.Experimental.AI;
 
 public class JumpDetection : MonoBehaviour
 {
@@ -13,9 +10,14 @@ public class JumpDetection : MonoBehaviour
     [SerializeField] private int _SelectedPoint;
     [SerializeField] private int _SelectedPolygon;
     [SerializeField] private JumpGenerator.Mode _Mode;
+    [SerializeField] private bool _ShowAllCorners;
 
     [SerializeField] private Vector2 _BoundingBoxSize;
     private static float gravity = -10;// Physics2D.gravity.y;
+
+    private const int LEFT = -1;
+    private const int RIGHT = 1;
+
 
     private struct TargetInfo
     {
@@ -41,38 +43,82 @@ public class JumpDetection : MonoBehaviour
         _SelectedPolygon = Mathf.Clamp(_SelectedPolygon, 0, polygons.Count - 1);
         _SelectedPoint = Mathf.Clamp(_SelectedPoint, 0, polygons[_SelectedPolygon].getWalkableCornerPoints(_MaxAngle).Count * 2 - 1);
 
-        Vector2 jumpStart = polygons[_SelectedPolygon].getJumpPoints(_MaxAngle)[_SelectedPoint];
-        int jumpDirection = (2 * (_SelectedPoint % 2) - 1);
-        jumpStart = allignJumpStart(jumpStart, _BoundingBoxSize, jumpDirection, polygons[_SelectedPolygon]);
-
-        // draw jump starting point
-        Gizmos.color = Color.white;
-        Vector2[] corners = BoxJumpTrajectory.getCorners(jumpStart, _BoundingBoxSize, jumpDirection);
-        for(int i = 0; i < corners.Length; i++)
-        {
-            Gizmos.DrawLine(corners[i], corners[(i + 1) % corners.Length]);
-        }
-
         // set up jumpGenerator
         JumpGenerator jumpGenerator = new JumpGenerator(gravity);
         switch (_Mode)
         {
             case JumpGenerator.Mode.DIRECTED_JUMP:
-                jumpGenerator.setModeDirectedJump(new Vector2(_MaxVelocity.x * jumpDirection, _MaxVelocity.y)); 
+                jumpGenerator.setModeDirectedJump(_MaxVelocity); 
                 break;
             case JumpGenerator.Mode.CONST_X_VARIABLE_Y:
-                jumpGenerator.setModeConstXvariableYJump(_MaxVelocity.x * jumpDirection);
+                jumpGenerator.setModeConstXvariableYJump(_MaxVelocity.x);
                 break;
             case JumpGenerator.Mode.CONST_Y_VARIABLE_X:
                 jumpGenerator.setModeConstYvariableXJump(_MaxVelocity.y);
                 break;
         }
 
-        List<Tuple<JumpHit, JumpHit>> allIntervals = findJumps(jumpStart, jumpDirection, polygons, jumpGenerator);
+        // create jump map
+        JumpMap jumpMap = new JumpMap(polygons);
+        foreach(Polygon polygon in polygons)
+        {
+            List<Tuple<Vector2, Vector2>> walkableCorners = polygon.getWalkableCornerPoints(_MaxAngle);
+            foreach (Tuple<Vector2, Vector2> corners in walkableCorners)
+            {
+                Vector2 leftCorner = corners.Item1.x < corners.Item2.x ? corners.Item1 : corners.Item2;
+                Vector2 rightCorner = corners.Item1.x >= corners.Item2.x ? corners.Item1 : corners.Item2;
+                leftCorner = allignJumpStart(leftCorner, _BoundingBoxSize, LEFT, polygon);
+                rightCorner = allignJumpStart(rightCorner, _BoundingBoxSize, RIGHT, polygon);
 
-        DrawSlopeGizmo(new Vector3(0, 5, 0));
+                List<Tuple<JumpHit, JumpHit>> intervals = new List<Tuple<JumpHit, JumpHit>>();
+                List<Tuple<JumpHit, JumpHit>> leftIntervals = findJumps(leftCorner, LEFT, polygons, jumpGenerator);
+                List<Tuple<JumpHit, JumpHit>> rightIntervals = findJumps(rightCorner, RIGHT, polygons, jumpGenerator);
 
-        drawIntervals(allIntervals, jumpStart);
+                intervals.AddRange(leftIntervals);
+                intervals.AddRange(rightIntervals);
+
+                foreach (Tuple<JumpHit, JumpHit> leftInterval in leftIntervals)
+                {
+                    jumpMap.addConnection(new JumpConnection(polygon, leftInterval.Item1.polygon, leftCorner, leftInterval));
+                }
+
+                foreach (Tuple<JumpHit, JumpHit> rightInterval in rightIntervals)
+                {
+                    jumpMap.addConnection(new JumpConnection(polygon, rightInterval.Item1.polygon, rightCorner, rightInterval));
+                }
+
+                // draw trajectory gizmos
+                if (polygon == polygons[_SelectedPolygon] && (_ShowAllCorners || corners == walkableCorners[_SelectedPoint / 2]))
+                {
+                    if(_SelectedPoint % 2 == 0 || _ShowAllCorners)
+                    {
+                        drawIntervalsAndTrajectories(leftIntervals, leftCorner, LEFT);
+                    }
+                    if (_SelectedPoint % 2 == 1 || _ShowAllCorners)
+                    {
+                        drawIntervalsAndTrajectories(rightIntervals, rightCorner, RIGHT);
+                    }
+                }
+            }
+        }
+
+        foreach(Polygon startPolygon in jumpMap.polygons)
+        {
+            foreach(Polygon destinationPolygon in jumpMap.getConnectedPolygons(startPolygon))
+            {
+                Gizmos.DrawLine(startPolygon.position, destinationPolygon.position);
+            }
+        }
+
+        //DrawSlopeGizmo(new Vector3(0, 5, 0));
+    }
+
+    private void drawIntervalsAndTrajectories(List<Tuple<JumpHit, JumpHit>> intervals, Vector2 corner, int direction)
+    {
+        drawIntervals(intervals, corner);
+        // draw jump starting point
+        Gizmos.color = Color.white;
+        BoxJumpTrajectory.drawBoundingBoxGizmo(corner, _BoundingBoxSize, direction);
     }
 
     private List<Tuple<JumpHit, JumpHit>> findJumps(Vector2 jumpStart, int jumpDirection, List<Polygon> polygons, JumpGenerator jumpGenerator)
@@ -188,8 +234,8 @@ public class JumpDetection : MonoBehaviour
 
         chunkHits.Sort((JumpHit hit1, JumpHit hit2) =>
         {
-            BoxJumpTrajectory jump1 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit1.velocity, gravity);
-            BoxJumpTrajectory jump2 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit2.velocity, gravity);
+            BoxJumpTrajectory jump1 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit1.jumpVelocity, gravity);
+            BoxJumpTrajectory jump2 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit2.jumpVelocity, gravity);
             return jump1.getCornerPositionInTime(hit1.time, BoxJumpTrajectory.BOTTOM_LEFT).x.CompareTo(jump2.getCornerPositionInTime(hit2.time, BoxJumpTrajectory.BOTTOM_LEFT).x);
         });
 
@@ -281,7 +327,7 @@ public class JumpDetection : MonoBehaviour
         {
             //check if it landed on walkable with bottom edge
             JumpTrajectory bottomJump = jump.getSingleTrajectory(BoxJumpTrajectory.BOTTOM_RIGHT);
-            float bottomEdgeHeight = bottomJump.getJumpHeightRelative(hit.time * jump.velocity.x) + bottomJump.jumpStart.y;
+            float bottomEdgeHeight = bottomJump.getJumpHeightRelative(hit.time * jump.jumpVelocity.x) + bottomJump.jumpStart.y;
             bool boxTouchesEdgeWithBottom = Mathf.Abs(bottomEdgeHeight - hit.position.y) < 0.001f;
 
             if (hit.polygon.isEdgeWalkable(hit.edge, _MaxAngle) && boxTouchesEdgeWithBottom)
@@ -365,7 +411,8 @@ public class JumpDetection : MonoBehaviour
         //add target collision, sometimes its not included by collidesWithEdge() - becouse rounding errors probably
         if (Mathf.Abs(jump.getMinPointGlobal(target.x) - target.y) < 0.00001f || Mathf.Abs(jump.getMaxPointGlobal(target.x) - target.y) < 0.00001f)
         {
-            JumpHit hit = new JumpHit(target, jump.velocity, (target.x - boxHitCorner.x) / jump.velocity.x, targetPoly, targetEdge);
+            float time = (target.x - boxHitCorner.x) / jump.jumpVelocity.x;
+            JumpHit hit = new JumpHit(target, jump.jumpVelocity, jump.getCurrentVelocity(time), time, targetPoly, targetEdge);
             jumpHits.Add(hit);
         }
 
@@ -456,13 +503,13 @@ public class JumpDetection : MonoBehaviour
         {
             Gizmos.color = Color.cyan;
             (JumpHit hit1, JumpHit hit2) = interval;
-            BoxJumpTrajectory jump1 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit1.velocity, gravity);
-            BoxJumpTrajectory jump2 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit2.velocity, gravity);
+            BoxJumpTrajectory jump1 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit1.jumpVelocity, gravity);
+            BoxJumpTrajectory jump2 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit2.jumpVelocity, gravity);
             jump1.drawTrajectoryGizmo(11, 0.1f);
             jump2.drawTrajectoryGizmo(11, 0.1f);
             Gizmos.color = Color.green;
-            jump1.drawBoundingBoxGizmo(hit1.time * jump1.velocity.x);
-            jump2.drawBoundingBoxGizmo(hit2.time * jump2.velocity.x);
+            jump1.drawBoundingBoxGizmo(hit1.time * jump1.jumpVelocity.x);
+            jump2.drawBoundingBoxGizmo(hit2.time * jump2.jumpVelocity.x);
             Handles.color = Color.green;
             Handles.DrawLine(jump1.getCornerPositionInTime(hit1.time, BoxJumpTrajectory.BOTTOM_RIGHT), jump2.getCornerPositionInTime(hit2.time, BoxJumpTrajectory.BOTTOM_LEFT), 10);
         }

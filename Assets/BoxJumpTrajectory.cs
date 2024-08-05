@@ -5,7 +5,7 @@ public class BoxJumpTrajectory
 {
     private JumpTrajectory[] jumpTrajectories;
     private Vector2[] corners;
-    public Vector2 velocity;
+    public Vector2 jumpVelocity;
     private Vector2 size;
     public Vector2 jumpStart;
     private float gravity;
@@ -23,9 +23,18 @@ public class BoxJumpTrajectory
         return new Vector2[4] { left + jumpStart, right + jumpStart, right + up + jumpStart, left + up + jumpStart };
     }
 
+    public static void drawBoundingBoxGizmo(Vector2 position, Vector2 size, int direction)
+    {
+        Vector2[] BboxCorners = getCorners(position, size, direction);
+        for (int i = 0; i < BboxCorners.Length; i++)
+        {
+            Gizmos.DrawLine(BboxCorners[i], BboxCorners[(i + 1) % BboxCorners.Length]);
+        }
+    }
+
     public BoxJumpTrajectory(Vector2 jumpStart, Vector2 size, Vector2 jumpVelocity, float gravity)
     {
-        this.velocity = jumpVelocity;
+        this.jumpVelocity = jumpVelocity;
         this.size = size;
         this.gravity = gravity;
         this.jumpStart = jumpStart;
@@ -60,11 +69,11 @@ public class BoxJumpTrajectory
         Gizmos.color = Color.red;
         if(p1 != jumpStart && timeCollP1 != float.MaxValue)
         {
-            hits.Add(new JumpHit(p1, velocity, timeCollP1, polygon, edge));
+            hits.Add(new JumpHit(p1, jumpVelocity, getCurrentVelocity(timeCollP1), timeCollP1, polygon, edge));
         }
         if(p2 != jumpStart && timeCollP2 != float.MaxValue)
         {
-            hits.Add(new JumpHit(p2, velocity, timeCollP2, polygon, edge));
+            hits.Add(new JumpHit(p2, jumpVelocity, getCurrentVelocity(timeCollP2), timeCollP2, polygon, edge));
         }
 
         foreach (JumpTrajectory jump in jumpTrajectories)
@@ -76,12 +85,12 @@ public class BoxJumpTrajectory
                     if(Vector2.Distance(collision1, jump.jumpStart) > 0.001f)
                     {
                         float t1 = (collision1.x - jump.jumpStart.x) / jump.velocity.x;
-                        hits.Add(new JumpHit(collision1, velocity, t1, polygon, edge));
+                        hits.Add(new JumpHit(collision1, jumpVelocity, getCurrentVelocity(t1), t1, polygon, edge));
                     }
                     if(collision2.x > float.MinValue && Vector2.Distance(collision2, jump.jumpStart) > 0.001f)
                     {
                         float t2 = (collision2.x - jump.jumpStart.x) / jump.velocity.x;
-                        hits.Add(new JumpHit(collision2, velocity, t2, polygon, edge));
+                        hits.Add(new JumpHit(collision2, jumpVelocity, getCurrentVelocity(t2), t2, polygon, edge));
                     }
                 }
             }
@@ -93,16 +102,16 @@ public class BoxJumpTrajectory
     public float getCollisionWithPointTime(Vector2 point)
     {
         float time = float.MaxValue;
-        int jumpDirSideTop = velocity.x > 0 ? TOP_RIGHT : TOP_LEFT;
-        int jumpDirSideBot = velocity.x > 0 ? BOTTOM_RIGHT : BOTTOM_LEFT;
+        int jumpDirSideTop = jumpVelocity.x > 0 ? TOP_RIGHT : TOP_LEFT;
+        int jumpDirSideBot = jumpVelocity.x > 0 ? BOTTOM_RIGHT : BOTTOM_LEFT;
 
         // is point behind or under bounding box
-        float toleranceStart = jumpStart.x + Mathf.Sign(velocity.x) * 0.001f;
-        if (Mathf.Sign(point.x - toleranceStart) != Mathf.Sign(velocity.x))
+        float toleranceStart = jumpStart.x + Mathf.Sign(jumpVelocity.x) * 0.001f;
+        if (Mathf.Sign(point.x - toleranceStart) != Mathf.Sign(jumpVelocity.x))
         {
-            float backSide = toleranceStart - Mathf.Sign(velocity.x) * size.x;
+            float backSide = toleranceStart - Mathf.Sign(jumpVelocity.x) * size.x;
             //  point and is behind bounding box                or              point is under bounding box
-            if (Mathf.Sign(point.x - backSide) != Mathf.Sign(velocity.x) || point.y < jumpStart.y)
+            if (Mathf.Sign(point.x - backSide) != Mathf.Sign(jumpVelocity.x) || point.y < jumpStart.y)
             {
                 return time;
             }
@@ -123,15 +132,15 @@ public class BoxJumpTrajectory
         // is between top and bottom jump dir corner trajectory - hitting with side edge first
         else if (jumpTrajectories[jumpDirSideBot].getJumpHeightGlobal(point.x) <= point.y && point.y <= jumpTrajectories[jumpDirSideTop].getJumpHeightGlobal(point.x))
         {
-            time = (point.x - jumpStart.x) / velocity.x;
+            time = (point.x - jumpStart.x) / jumpVelocity.x;
             return time;
         }
         // is between max boxTrajectory and jump side top corner trajectory - going up and hitting with top edge first
         else if (jumpTrajectories[jumpDirSideTop].getJumpHeightGlobal(point.x) <= point.y && point.y <= getMaxPointGlobal(point.x))
         {
-            float D1 = (velocity.y * velocity.y) + 2 * gravity * (point.y - jumpTrajectories[jumpDirSideTop].jumpStart.y);
-            float time1 = (-velocity.y + Mathf.Sqrt(D1)) / gravity;
-            float time2 = (-velocity.y - Mathf.Sqrt(D1)) / gravity;
+            float D1 = (jumpVelocity.y * jumpVelocity.y) + 2 * gravity * (point.y - jumpTrajectories[jumpDirSideTop].jumpStart.y);
+            float time1 = (-jumpVelocity.y + Mathf.Sqrt(D1)) / gravity;
+            float time2 = (-jumpVelocity.y - Mathf.Sqrt(D1)) / gravity;
 
             if (time1 > 0 && time2 > 0)
             {
@@ -147,9 +156,9 @@ public class BoxJumpTrajectory
         // is between jump side bottom corner trajectory and min boxTrajectory - going down and hitting with bottom edge first
         else if (getMinPointGlobal(point.x) <= point.y && point.y <= jumpTrajectories[jumpDirSideBot].getJumpHeightGlobal(point.x))
         {
-            float D1 = (velocity.y * velocity.y) + 2 * gravity * (point.y - jumpTrajectories[jumpDirSideBot].jumpStart.y);
-            float time1 = (-velocity.y + Mathf.Sqrt(D1)) / gravity;
-            float time2 = (-velocity.y - Mathf.Sqrt(D1)) / gravity;
+            float D1 = (jumpVelocity.y * jumpVelocity.y) + 2 * gravity * (point.y - jumpTrajectories[jumpDirSideBot].jumpStart.y);
+            float time1 = (-jumpVelocity.y + Mathf.Sqrt(D1)) / gravity;
+            float time2 = (-jumpVelocity.y - Mathf.Sqrt(D1)) / gravity;
 
             if (time1 > 0 && time2 > 0)
             {
@@ -198,12 +207,12 @@ public class BoxJumpTrajectory
 
     public float getMaxPointGlobal(float x)
     {
-        float peakT = velocity.y / -gravity;
-        float leftPeakX = peakT * velocity.x + jumpTrajectories[TOP_LEFT].jumpStart.x;
-        float rightPeakX = peakT * velocity.x + jumpTrajectories[TOP_RIGHT].jumpStart.x;
+        float peakT = jumpVelocity.y / -gravity;
+        float leftPeakX = peakT * jumpVelocity.x + jumpTrajectories[TOP_LEFT].jumpStart.x;
+        float rightPeakX = peakT * jumpVelocity.x + jumpTrajectories[TOP_RIGHT].jumpStart.x;
         if (leftPeakX <= x && x <= rightPeakX)
         {
-            return velocity.y * peakT + 0.5f * gravity * peakT * peakT + jumpTrajectories[TOP_RIGHT].jumpStart.y;
+            return jumpVelocity.y * peakT + 0.5f * gravity * peakT * peakT + jumpTrajectories[TOP_RIGHT].jumpStart.y;
         }
 
         float max = float.MinValue;
@@ -217,7 +226,7 @@ public class BoxJumpTrajectory
 
     public void drawTrajectoryGizmo(float length, float step)
     {
-        int direction = (int)Mathf.Sign(velocity.x);
+        int direction = (int)Mathf.Sign(jumpVelocity.x);
         
         float directtedStep = step * direction;
         float x1 = jumpStart.x - direction * size.x;
@@ -262,7 +271,7 @@ public class BoxJumpTrajectory
 
     public void drawMaxTrajectoryGizmos(float length, float step)
     {
-        int direction = (int)Mathf.Sign(velocity.x);
+        int direction = (int)Mathf.Sign(jumpVelocity.x);
 
         float directtedStep = step * direction;
         float x1 = jumpStart.x - direction * size.x;
@@ -304,7 +313,7 @@ public class BoxJumpTrajectory
 
     public void drawMinTrajectoryGizmos(float length, float step)
     {
-        int direction = (int)Mathf.Sign(velocity.x);
+        int direction = (int)Mathf.Sign(jumpVelocity.x);
 
         float directtedStep = step * direction;
         float x1 = jumpStart.x - direction * size.x;
@@ -337,6 +346,11 @@ public class BoxJumpTrajectory
 
     public Vector2 getCornerPositionInTime(float time, int corner)
     {
-        return jumpTrajectories[corner].jumpStart + new Vector2(time * velocity.x, jumpTrajectories[corner].getJumpHeightRelative(time * velocity.x));
+        return jumpTrajectories[corner].jumpStart + new Vector2(time * jumpVelocity.x, jumpTrajectories[corner].getJumpHeightRelative(time * jumpVelocity.x));
+    }
+
+    public Vector2 getCurrentVelocity(float time)
+    {
+        return new Vector2(jumpVelocity.x, jumpVelocity.y + gravity * time);
     }
 }

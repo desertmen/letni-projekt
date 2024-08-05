@@ -8,15 +8,17 @@ public class JumpHit
     public Edge edge;
     public Polygon polygon;
     public float time;
-    public Vector2 velocity;
+    public Vector2 jumpVelocity;
+    public Vector2 impactVelocity;
 
-    public JumpHit(Vector2 position, Vector2 veloctiy, float time, Polygon polygon, Edge edge)
+    public JumpHit(Vector2 position, Vector2 jumpVelocity, Vector2 impactVelocity, float time, Polygon polygon, Edge edge)
     {
         this.isReachable = false;
         this.position = position;
         this.edge = edge;
         this.polygon = polygon;
         this.time = time;
-        this.velocity = veloctiy;
+        this.jumpVelocity = jumpVelocity;
+        this.impactVelocity = impactVelocity;
     }
 }

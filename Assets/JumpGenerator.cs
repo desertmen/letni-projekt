@@ -30,13 +30,13 @@ public class JumpGenerator
 
     public void setModeConstXvariableYJump(float xVelocity)
     {
-        this.maxVelocity = xVelocity;
+        this.maxVelocity = Mathf.Abs(xVelocity);
         this.currentMode = Mode.CONST_X_VARIABLE_Y;
     }
 
     public void setModeConstYvariableXJump(float yVelocity)
     {
-        this.maxVelocity = yVelocity;
+        this.maxVelocity = Mathf.Abs(yVelocity);
         this.currentMode = Mode.CONST_Y_VARIABLE_X;
     }
 
@@ -45,7 +45,7 @@ public class JumpGenerator
         switch(this.currentMode)
         {
             case Mode.DIRECTED_JUMP:
-                return getVelocityToTargetDirected(jumpStart, target, this.jumpVelocityDirection);
+                return getVelocityToTargetDirected(jumpStart, target, new Vector2(Mathf.Abs(jumpVelocityDirection.x) * Mathf.Sign(target.x - jumpStart.x), jumpVelocityDirection.y));
             case Mode.CONST_X_VARIABLE_Y:
                 return getVelocityToTargetVariableY(jumpStart, target, maxVelocity);
             case Mode.CONST_Y_VARIABLE_X:
@@ -193,6 +193,7 @@ public class JumpGenerator
 
     public Vector2 getVelocityToTargetVariableY(Vector2 jumpStart, Vector2 target, float xVelocity)
     {
+        xVelocity = Mathf.Sign(target.x - jumpStart.x) * xVelocity;
         Vector2 diff = target - jumpStart;
         float t = diff.x / xVelocity;
         float yVelocity = (diff.y / t - 0.5f * gravity * t);
