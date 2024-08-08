@@ -171,12 +171,12 @@ public class JumpDetection : MonoBehaviour
                 continue;
             }
             //allTargetsHit &= testBoxJump(jumpStart, target, jumpGenerator, polygons, ref landingHitsPerJump);
-            allTargetsBellowHit &= testBoxJump(jumpStart, target, jumpGenerator, polygons, ref landingHitsPerJump) || target.position.y > jumpStart.y;
+            allTargetsBellowHit &= testBoxJump(jumpStart, target, jumpGenerator, polygons, jumpDirection, ref landingHitsPerJump) || target.position.y > jumpStart.y;
         }
         // test jump down if possible
         if (allTargetsBellowHit)
         {
-            testBoxJump(jumpStart, jumpStartTarget, jumpGenerator, polygons, ref landingHitsPerJump);
+            testBoxJump(jumpStart, jumpStartTarget, jumpGenerator, polygons, jumpDirection, ref landingHitsPerJump);
         }
 
         // create intervals
@@ -331,9 +331,9 @@ public class JumpDetection : MonoBehaviour
     }
 
     // returns false if target cant be reached with jumpGenerators current configuration
-    private bool testBoxJump(Vector2 jumpStart, TargetInfo target, JumpGenerator jumpGenerator, List<Polygon> polygons, ref List<List<JumpHit>> landingHitsPerJump)
+    private bool testBoxJump(Vector2 jumpStart, TargetInfo target, JumpGenerator jumpGenerator, List<Polygon> polygons, int direction, ref List<List<JumpHit>> landingHitsPerJump)
     {
-        Vector2[] jumpStartCorners = BoxJumpTrajectory.getCorners(jumpStart, _BoundingBoxSize, (int)Mathf.Sign(target.position.x - jumpStart.x));
+        Vector2[] jumpStartCorners = BoxJumpTrajectory.getCorners(jumpStart, _BoundingBoxSize, direction);
         foreach (Vector2 boxHitCorner in jumpStartCorners)
         {
             Vector2 velocity = jumpGenerator.getVelocityByMode(boxHitCorner, target.position);

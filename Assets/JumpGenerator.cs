@@ -143,6 +143,8 @@ public class JumpGenerator
     public Vector2 getVelocityToTargetDirected(Vector2 jumpStart, Vector2 target, Vector2 jumpDirection)
     {
         Vector2 diff = target - jumpStart;
+        if(diff.x == 0)
+            return Vector2.zero;
         float v_y = jumpDirection.y;
         float v_x = jumpDirection.x;
         float x = diff.x;

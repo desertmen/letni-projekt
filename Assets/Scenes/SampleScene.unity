@@ -796,10 +796,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _MaxVelocity: {x: 5, y: 7}
   _MaxAngle: 42.6
-  _SelectedWalkableChunk: 1
-  _SelectedPolygon: 4
+  _SelectedPolygon: 0
+  _SelectedChunk: 0
+  _SelectedConnection: 7
   _Mode: 0
   _ShowTrajectories: 1
+  _ShowAllIntervalsOnChunk: 1
   _ShowPolygonConnections: 0
   _BoundingBoxSize: {x: 0.5, y: 0.5}
 --- !u!4 &1919726406
