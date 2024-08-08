@@ -5,43 +5,56 @@ using UnityEngine;
 
 public class JumpMap
 {
-    public List<Polygon> polygons;
-    private Dictionary<Polygon, List<Polygon>> polygonConnections = new Dictionary<Polygon, List<Polygon>>();
-    private Dictionary<Polygon, List<JumpConnection>> destinationIntervals = new Dictionary<Polygon, List<JumpConnection>>();
-    private Dictionary<Polygon, List<JumpConnection>> intervalsOnPolygon = new Dictionary<Polygon, List<JumpConnection>>();
+    // TODO -> froom polygon oriented to walkable chunk oriented
+    private List<WalkableChunk> walkableChunks;
+    private Dictionary<WalkableChunk, List<WalkableChunk>> connections = new Dictionary<WalkableChunk, List<WalkableChunk>>();
+    private Dictionary<WalkableChunk, List<JumpConnection>> destinationIntervals = new Dictionary<WalkableChunk, List<JumpConnection>>();
+    private Dictionary<WalkableChunk, List<JumpConnection>> intervalsOnWalkableChunk = new Dictionary<WalkableChunk, List<JumpConnection>>();
 
-    private HashSet<Tuple<Polygon, Polygon>> alreadyConnectedPolygons = new HashSet<Tuple<Polygon, Polygon>>();
+    private HashSet<Tuple<WalkableChunk, WalkableChunk>> alreadyConnectedPolygons = new HashSet<Tuple<WalkableChunk, WalkableChunk>>();
 
-    public JumpMap(List<Polygon> polygons)
+    public JumpMap(List<WalkableChunk> walkableChunks)
     {
-        this.polygons = polygons;
+        this.walkableChunks = walkableChunks;
     }
 
     public void addConnection(JumpConnection jumpConnection)
     {
-        addToListInDictionary<Polygon, JumpConnection>(jumpConnection.startPolygon, jumpConnection, destinationIntervals);
-        addToListInDictionary<Polygon, JumpConnection>(jumpConnection.destinationPolygon, jumpConnection, intervalsOnPolygon);
+        addToListInDictionary<WalkableChunk, JumpConnection>(jumpConnection.startChunk, jumpConnection, destinationIntervals);
+        addToListInDictionary<WalkableChunk, JumpConnection>(jumpConnection.destinationChunk, jumpConnection, intervalsOnWalkableChunk);
         
-        // make sure polygonConnections are unique
-        if(!alreadyConnectedPolygons.Contains(new Tuple<Polygon, Polygon>(jumpConnection.startPolygon, jumpConnection.destinationPolygon)))
+        // make sure connections are unique
+        if(!alreadyConnectedPolygons.Contains(new Tuple<WalkableChunk, WalkableChunk>(jumpConnection.startChunk, jumpConnection.destinationChunk)))
         {
-            addToListInDictionary<Polygon, Polygon>(jumpConnection.startPolygon, jumpConnection.destinationPolygon, polygonConnections);
-            alreadyConnectedPolygons.Add(new Tuple<Polygon, Polygon>(jumpConnection.startPolygon, jumpConnection.destinationPolygon));
-            if(jumpConnection.startPolygon != jumpConnection.destinationPolygon)
+            addToListInDictionary<WalkableChunk, WalkableChunk>(jumpConnection.startChunk, jumpConnection.destinationChunk, connections);
+            alreadyConnectedPolygons.Add(new Tuple<WalkableChunk, WalkableChunk>(jumpConnection.startChunk, jumpConnection.destinationChunk));
+            if(jumpConnection.startChunk != jumpConnection.destinationChunk)
             {
-                addToListInDictionary<Polygon, Polygon>(jumpConnection.destinationPolygon, jumpConnection.startPolygon, polygonConnections);
-                alreadyConnectedPolygons.Add(new Tuple<Polygon, Polygon>(jumpConnection.destinationPolygon, jumpConnection.startPolygon));
+                addToListInDictionary<WalkableChunk, WalkableChunk>(jumpConnection.destinationChunk, jumpConnection.startChunk, connections);
+                alreadyConnectedPolygons.Add(new Tuple<WalkableChunk, WalkableChunk>(jumpConnection.destinationChunk, jumpConnection.startChunk));
             }
         }
     }   
 
-    public List<Polygon> getConnectedPolygons(Polygon polygon)
+    public List<WalkableChunk> getAllWalkableChunks() { return walkableChunks; }
+    public List<WalkableChunk> getPolygons() { return walkableChunks; }
+
+    public List<WalkableChunk> getConnectedChunks(WalkableChunk walkableChunk)
     {
-        if(polygonConnections.TryGetValue(polygon, out List<Polygon> polygons))
+        if(connections.TryGetValue(walkableChunk, out List<WalkableChunk> connectedChunks))
         {
-            return polygons;
+            return connectedChunks;
         }
-        return new List<Polygon>();
+        return new List<WalkableChunk>();
+    }
+
+    public List<JumpConnection> getDestinationConnecitons(WalkableChunk walkableChunk)
+    {
+        if(destinationIntervals.TryGetValue(walkableChunk, out List<JumpConnection> jumpConnections))
+        {
+            return jumpConnections;
+        }
+        return new List<JumpConnection>();
     }
 
     private void addToListInDictionary<K, V>(K key, V value, Dictionary<K, List<V>> dictionary)

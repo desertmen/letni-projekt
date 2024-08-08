@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class JumpHit
@@ -10,6 +11,7 @@ public class JumpHit
     public float time;
     public Vector2 jumpVelocity;
     public Vector2 impactVelocity;
+    public WalkableChunk walkableChunk;
 
     public JumpHit(Vector2 position, Vector2 jumpVelocity, Vector2 impactVelocity, float time, Polygon polygon, Edge edge)
     {

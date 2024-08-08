@@ -1,17 +1,18 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class JumpConnection
 {
-    public Polygon startPolygon;
-    public Polygon destinationPolygon;
+    public WalkableChunk startChunk;
+    public WalkableChunk destinationChunk;
     public Vector2 jumpStart;
     public Tuple<JumpHit, JumpHit> hitInterval;
 
-    public JumpConnection(Polygon startPolygon, Polygon destinationPolygon, Vector2 jumpStart, Tuple<JumpHit, JumpHit> interval)
+    public JumpConnection(WalkableChunk startPolygon, WalkableChunk destinationPolygon, Vector2 jumpStart, Tuple<JumpHit, JumpHit> interval)
     {
-        this.startPolygon = startPolygon;
-        this.destinationPolygon = destinationPolygon;
+        this.startChunk = startPolygon;
+        this.destinationChunk = destinationPolygon;
         this.jumpStart = jumpStart;
         this.hitInterval = interval;
     }

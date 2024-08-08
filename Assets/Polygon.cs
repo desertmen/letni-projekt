@@ -1,5 +1,4 @@
 
-using JetBrains.Annotations;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,6 +23,9 @@ public class Polygon
     public List<Edge> edges;
 
     public Vector2 position;
+
+    private List<WalkableChunk> walkableChunks;
+
     public Polygon(BoxCollider2D boxCollider)
     {
         Vector2 center = boxCollider.bounds.center;
@@ -88,56 +90,21 @@ public class Polygon
     public List<Tuple<Vector2, Vector2>> getWalkableCornerPoints(float maxAngle)
     {
         List<Tuple<Vector2, Vector2>> walkableCorners = new List<Tuple<Vector2, Vector2>>();
-        int[] walkableEdges = new int[points.Count];
-        int[] walkableEdges2 = new int[points.Count];
-        bool[] used = new bool[points.Count];
-        for(int i = 0; i < walkableEdges.Length; i++)
+        foreach(WalkableChunk chunk in walkableChunks) 
         {
-            walkableEdges[i] = -1;
-            walkableEdges2[i] = -1;
-        }
-
-        foreach(Edge edge in edges)
-        {
-            if(isEdgeWalkable(edge, maxAngle))
-            {
-                walkableEdges[edge.Item1] = edge.Item2;
-                walkableEdges2[edge.Item2] = edge.Item1;
-            }
-        }
-
-        for(int i = 0; i < points.Count; i++)
-        {
-            if (used[i])
-                continue;
-
-            int end = i;
-            int start = i;
-            used[i] = true;
-            // find start and end
-            while (walkableEdges[end] != -1)
-            {
-                end = walkableEdges[end];
-                used[end] = true;
-            }
-            while (walkableEdges2[start] != -1)
-            {
-                start = walkableEdges2[start];
-                used[start] = true;
-            }
-
-            if (end != start)
-            {
-                walkableCorners.Add(new Tuple<Vector2, Vector2>(points[start], points[end]));
-            }
+            walkableCorners.Add(new Tuple<Vector2, Vector2>(chunk.positions[0], chunk.positions[chunk.positions.Count - 1]));
         }
 
         return walkableCorners;
     }
-
-    public List<List<int>> getWalkableChunks(float maxAngle)
+    public List<WalkableChunk> getPrecalculatedWalkableChunks()
     {
-        List<List<int>> walkableChunks = new List<List<int>>();
+        return walkableChunks;
+    }
+
+    public List<WalkableChunk> calculateWalkableChunks(float maxAngle)
+    {
+        walkableChunks = new List<WalkableChunk>();
         int[] walkableEdges = new int[points.Count];
         int[] walkableEdges2 = new int[points.Count];
         bool[] used = new bool[points.Count];
@@ -161,7 +128,7 @@ public class Polygon
             if (used[i])
                 continue;
 
-            List<int> walkableChunk = new List<int>() { i };
+            List<int> walkableChunkIndices = new List<int>() { i };
 
             int end = i;
             int start = i;
@@ -170,33 +137,28 @@ public class Polygon
             while (walkableEdges[end] != -1)
             {
                 end = walkableEdges[end];
-                walkableChunk.Add(end);
+                walkableChunkIndices.Add(end);
                 used[end] = true;
             }
             while (walkableEdges2[start] != -1)
             {
                 start = walkableEdges2[start];
-                walkableChunk.Add(start);
+                walkableChunkIndices.Add(start);
                 used[start] = true;
             }
 
-            if(walkableChunk.Count > 1)
-                walkableChunks.Add(walkableChunk);
+            if(walkableChunkIndices.Count > 1)
+                walkableChunks.Add(new WalkableChunk(walkableChunkIndices, getChunkPositionsFromIndicies(walkableChunkIndices)));
         }
 
         return walkableChunks;
     }
 
-    // even indices - left, odd - right
-    public List<Vector2> getJumpPoints(float maxAngle)
+    private List<Vector2> getChunkPositionsFromIndicies(List<int> indicies)
     {
-        List<Tuple<Vector2, Vector2>> walkableCorners = getWalkableCornerPoints(maxAngle);
-        List<Vector2> jumpPoints = new List<Vector2>();
-        foreach(Tuple<Vector2, Vector2> corners in walkableCorners)
-        {
-            jumpPoints.Add(corners.Item1);
-            jumpPoints.Add(corners.Item2);
-        }
-        return jumpPoints;
+        List<Vector2> chunkPositions = new List<Vector2>();
+        foreach (int idx in indicies)
+            chunkPositions.Add(points[idx]);
+        return chunkPositions;
     }
 }
