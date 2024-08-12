@@ -798,7 +798,7 @@ MonoBehaviour:
   _MaxAngle: 42.6
   _SelectedPolygon: 0
   _SelectedChunk: 0
-  _SelectedConnection: 7
+  _SelectedConnection: 6
   _Mode: 0
   _ShowTrajectories: 1
   _ShowAllIntervalsOnChunk: 1

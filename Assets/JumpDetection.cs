@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Experimental.AI;
 
 public class JumpDetection : MonoBehaviour
 {
@@ -77,14 +77,14 @@ public class JumpDetection : MonoBehaviour
             Polygon selectedPolygon = polygons[_SelectedPolygon];
             _SelectedChunk = Mathf.Clamp(_SelectedPolygon, 0, selectedPolygon.getPrecalculatedWalkableChunks().Count - 1);
             WalkableChunk selectedChunk = polygons[_SelectedPolygon].getPrecalculatedWalkableChunks()[_SelectedChunk];
-            List<JumpConnection> connections = jumpMap.getDestinationConnecitons(selectedChunk);
+            List<JumpConnectionNode> connections = jumpMap.getDestinationConnecitons(selectedChunk);
             _SelectedConnection = Mathf.Clamp(_SelectedConnection, 0, connections.Count - 1);
 
             for (int i = 0; i < connections.Count; i++)
             {
                 if (i == _SelectedConnection || _ShowAllIntervalsOnChunk)
                 {
-                    JumpConnection jumpConnection = connections[i];
+                    JumpConnectionNode jumpConnection = connections[i];
                     drawInterval(jumpConnection.hitInterval, jumpConnection.jumpStart);
                     // draw jump starting point
                     Gizmos.color = Color.white;
@@ -137,13 +137,13 @@ public class JumpDetection : MonoBehaviour
                 foreach (Tuple<JumpHit, JumpHit> leftInterval in leftIntervals)
                 {
                     WalkableChunk hitWalkableChunkPoints = leftInterval.Item1.walkableChunk;
-                    jumpMap.addConnection(new JumpConnection(walkableChunk, hitWalkableChunkPoints, leftCorner, leftInterval));
+                    jumpMap.addConnection(new JumpConnectionNode(walkableChunk, hitWalkableChunkPoints, leftCorner, leftInterval));
                 }
 
                 foreach (Tuple<JumpHit, JumpHit> rightInterval in rightIntervals)
                 {
                     WalkableChunk hitWalkableChunkPoints = rightInterval.Item1.walkableChunk;
-                    jumpMap.addConnection(new JumpConnection(walkableChunk, hitWalkableChunkPoints, rightCorner, rightInterval));
+                    jumpMap.addConnection(new JumpConnectionNode(walkableChunk, hitWalkableChunkPoints, rightCorner, rightInterval));
                 }
             }
         }
