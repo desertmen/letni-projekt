@@ -1,18 +1,15 @@
-using JetBrains.Annotations;
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 
-public class Heap<T> where T : IComparable
+public enum HeapType
 {
-    public enum HeapType
-    {
-        MIN_HEAP = -1,
-        MAX_HEAP = 1
-    }
+    MIN_HEAP = -1,
+    MAX_HEAP = 1
+}
 
-    public List<T> heap = new List<T>();
+public class Heap<T> where T : IHeapItem<T>
+{
+    private List<T> heap = new List<T>();
     private HeapType heapType;
     
     // if implementing custom IComparable, CompareTo MUST return 0, 1 or -1, or it breaks
@@ -24,6 +21,7 @@ public class Heap<T> where T : IComparable
     public void push(T item)
     {
         heap.Add(item);
+        item.heapIndex = heap.Count - 1;
         sortUp(heap.Count - 1);
     }
 
@@ -32,12 +30,12 @@ public class Heap<T> where T : IComparable
         if(heap.Count == 0)
             return default(T);
 
-        T min = heap[0];
+        T top = heap[0];
         heap[0] = heap[heap.Count - 1];
         heap.RemoveAt(heap.Count - 1);
 
         heapify();
-        return min;
+        return top;
     }
 
     public T peek()
@@ -47,7 +45,18 @@ public class Heap<T> where T : IComparable
         return default(T);
     }
 
+    public void updateUp(T item)
+    {
+        if (contains(item))
+        {
+            sortUp(item.heapIndex);
+        }
+    }
+
     public bool isEmpty() { return heap.Count == 0; }
+    public bool contains(T item) { 
+        return item.heapIndex >= 0 && item.heapIndex < heap.Count && item.Equals(heap[item.heapIndex]); 
+    }
 
     public int size() { return heap.Count;}
 
@@ -96,6 +105,9 @@ public class Heap<T> where T : IComparable
         T tmp = heap[idx1];
         heap[idx1] = heap[idx2];
         heap[idx2] = tmp;
+
+        heap[idx1].heapIndex = idx1;
+        heap[idx2].heapIndex = idx2;
     }
 
     private int getParrentIdx(int idx) { return (idx - 1) / 2; }
