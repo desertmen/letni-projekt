@@ -1,24 +1,24 @@
 using System;
 using System.Collections.Generic;
 
-public class Astar
+public class Astar<T> where T : IAStarNode<T>, IHeapItem<T>
 {
-    private Heap<IAStarNode> open = new Heap<IAStarNode>(HeapType.MIN_HEAP);
-    private HashSet<IAStarNode> closed = new HashSet<IAStarNode>();
+    private Heap<T> open = new Heap<T>(HeapType.MIN_HEAP);
+    private HashSet<T> closed = new HashSet<T>();
 
-    private IAStarNode start;
-    private IAStarNode goal;
+    private T start;
+    private T goal;
 
-    public Astar(IAStarNode start, IAStarNode goal)
+    public Astar(T start, T goal)
     {
         this.start = start;
         this.goal = goal;
     }
 
-    public List<IAStarNode> getPath()
+    public List<T> getPath()
     {
         closed.Add(start);
-        foreach((IAStarNode neighbour, float cost) in start.getNeighbours())
+        foreach((T neighbour, float cost) in start.getNeighbours())
         {
             open.push(neighbour);
             neighbour.h = cost;
@@ -28,10 +28,10 @@ public class Astar
         bool found = false;
         while(!open.isEmpty())
         {
-            IAStarNode current = open.pop();
+            T current = open.pop();
             closed.Add(current);
             
-            foreach ((IAStarNode neighbour, float cost) in current.getNeighbours())
+            foreach ((T neighbour, float cost) in current.getNeighbours())
             {
                 if (neighbour.Equals(goal))
                 {

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime;
 using UnityEditor;
 using UnityEngine;
 
@@ -39,7 +38,6 @@ public class JumpDetection : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        Debug.Log(float.PositiveInfinity + float.PositiveInfinity + ", " + float.PositiveInfinity + 1000.01f);
         checkSpeed();
 
         List<Polygon> polygons = getChildrenPolygons(_MaxAngle);
@@ -77,7 +75,7 @@ public class JumpDetection : MonoBehaviour
             Polygon selectedPolygon = polygons[_SelectedPolygon];
             _SelectedChunk = Mathf.Clamp(_SelectedPolygon, 0, selectedPolygon.getPrecalculatedWalkableChunks().Count - 1);
             WalkableChunk selectedChunk = polygons[_SelectedPolygon].getPrecalculatedWalkableChunks()[_SelectedChunk];
-            List<JumpConnectionInfo> connections = jumpMap.getDestinationConnecitons(selectedChunk);
+            List<JumpConnectionInfo> connections = jumpMap.getOutgoingConnections(selectedChunk);
             _SelectedConnection = Mathf.Clamp(_SelectedConnection, 0, connections.Count - 1);
 
             for (int i = 0; i < connections.Count; i++)
