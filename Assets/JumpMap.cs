@@ -8,8 +8,8 @@ public class JumpMap
     // TODO -> froom polygon oriented to walkable chunk oriented
     private List<WalkableChunk> walkableChunks;
     private Dictionary<WalkableChunk, List<WalkableChunk>> connections = new Dictionary<WalkableChunk, List<WalkableChunk>>();
-    private Dictionary<WalkableChunk, List<JumpConnection>> destinationIntervals = new Dictionary<WalkableChunk, List<JumpConnection>>();
-    private Dictionary<WalkableChunk, List<JumpConnection>> intervalsOnWalkableChunk = new Dictionary<WalkableChunk, List<JumpConnection>>();
+    private Dictionary<WalkableChunk, List<JumpConnectionInfo>> destinationIntervals = new Dictionary<WalkableChunk, List<JumpConnectionInfo>>();
+    private Dictionary<WalkableChunk, List<JumpConnectionInfo>> intervalsOnWalkableChunk = new Dictionary<WalkableChunk, List<JumpConnectionInfo>>();
 
     private HashSet<Tuple<WalkableChunk, WalkableChunk>> alreadyConnectedPolygons = new HashSet<Tuple<WalkableChunk, WalkableChunk>>();
 
@@ -18,10 +18,10 @@ public class JumpMap
         this.walkableChunks = walkableChunks;
     }
 
-    public void addConnection(JumpConnection jumpConnection)
+    public void addConnection(JumpConnectionInfo jumpConnection)
     {
-        addToListInDictionary<WalkableChunk, JumpConnection>(jumpConnection.startChunk, jumpConnection, destinationIntervals);
-        addToListInDictionary<WalkableChunk, JumpConnection>(jumpConnection.destinationChunk, jumpConnection, intervalsOnWalkableChunk);
+        addToListInDictionary<WalkableChunk, JumpConnectionInfo>(jumpConnection.startChunk, jumpConnection, destinationIntervals);
+        addToListInDictionary<WalkableChunk, JumpConnectionInfo>(jumpConnection.destinationChunk, jumpConnection, intervalsOnWalkableChunk);
         
         // make sure connections are unique
         if(!alreadyConnectedPolygons.Contains(new Tuple<WalkableChunk, WalkableChunk>(jumpConnection.startChunk, jumpConnection.destinationChunk)))
@@ -48,13 +48,13 @@ public class JumpMap
         return new List<WalkableChunk>();
     }
 
-    public List<JumpConnection> getDestinationConnecitons(WalkableChunk walkableChunk)
+    public List<JumpConnectionInfo> getDestinationConnecitons(WalkableChunk walkableChunk)
     {
-        if(destinationIntervals.TryGetValue(walkableChunk, out List<JumpConnection> jumpConnections))
+        if(destinationIntervals.TryGetValue(walkableChunk, out List<JumpConnectionInfo> jumpConnections))
         {
             return jumpConnections;
         }
-        return new List<JumpConnection>();
+        return new List<JumpConnectionInfo>();
     }
 
     private void addToListInDictionary<K, V>(K key, V value, Dictionary<K, List<V>> dictionary)

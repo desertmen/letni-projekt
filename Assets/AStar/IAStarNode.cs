@@ -10,6 +10,6 @@ public interface IAStarNode : IHeapItem<IAStarNode>
     float h { set; get; }
     IAStarNode parrent {set; get;}
 
-    public float distance(IAStarNode node);
+    public float getDistanceToGoal(IAStarNode goal);
     public List<Tuple<IAStarNode, float>> getNeighbours();
 }

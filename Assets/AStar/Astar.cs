@@ -22,7 +22,7 @@ public class Astar
         {
             open.push(neighbour);
             neighbour.h = cost;
-            neighbour.g = neighbour.distance(goal);
+            neighbour.g = neighbour.getDistanceToGoal(goal);
         }
 
         bool found = false;
@@ -48,14 +48,14 @@ public class Astar
                 if (!open.contains(neighbour))
                 {
                     neighbour.g = newCost;
-                    neighbour.h = neighbour.distance(goal);
+                    neighbour.h = neighbour.getDistanceToGoal(goal);
                     neighbour.parrent = current;
                     open.push(neighbour);
                 }
                 else if (newCost < neighbour.g)
                 {
                     neighbour.g = newCost;
-                    neighbour.h = neighbour.distance(goal);
+                    neighbour.h = neighbour.getDistanceToGoal(goal);
                     neighbour.parrent = current;
                     open.updateUp(neighbour);
                 }
