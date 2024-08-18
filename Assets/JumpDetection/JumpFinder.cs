@@ -2,8 +2,9 @@ using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Experimental.AI;
 
-public class JumpDetection : MonoBehaviour
+public class JumpFinder : MonoBehaviour
 {
     [SerializeField] private Vector2 _MaxVelocity;
     [SerializeField] [Range(0, 89)] private float _MaxAngle;
@@ -14,6 +15,7 @@ public class JumpDetection : MonoBehaviour
     [SerializeField] private bool _ShowTrajectories;
     [SerializeField] private bool _ShowAllIntervalsOnChunk;
     [SerializeField] private bool _ShowPolygonConnections;
+    [SerializeField] private bool _ShowJumpNodes;
 
     [SerializeField] private Vector2 _BoundingBoxSize;
     private static float gravity = -10;// Physics2D.gravity.y;
@@ -21,6 +23,10 @@ public class JumpDetection : MonoBehaviour
     private const int LEFT = -1;
     private const int RIGHT = 1;
 
+    [HideInInspector]
+    public Vector3 startHandle;
+    [HideInInspector]
+    public Vector3 goalHandle;
 
     private struct TargetInfo
     {
@@ -61,10 +67,48 @@ public class JumpDetection : MonoBehaviour
         JumpMap jumpMap = getJumpMap(polygons, jumpGenerator);
 
         drawTrajectories(polygons, jumpMap);
-        Gizmos.color = Color.red;
-        drawConnections(jumpMap);
-
+        drawPolygonConnections(jumpMap);
+        drawJumpNodes(polygons, jumpMap);
         //DrawSlopeGizmo(new Vector3(0, 5, 0));
+
+        JumpNode start = jumpMap.getClosestJumpNode(startHandle);
+        JumpNode goal = jumpMap.getClosestJumpNode(goalHandle);
+
+        Astar<JumpNode> astar = new Astar<JumpNode>(start, goal);
+        List<JumpNode> path = astar.getPath();
+        
+        Gizmos.color = Color.green;
+        Gizmos.DrawSphere(startHandle, 0.3f);
+        Gizmos.DrawSphere(start.position, 0.2f);
+        Gizmos.color = Color.red;
+        Gizmos.DrawSphere(goalHandle, 0.3f);
+        Gizmos.DrawSphere(goal.position, 0.2f);
+        Gizmos.color = Color.green;
+        for(int i = 0; i < path.Count - 1; i++)
+        {
+            Gizmos.DrawLine(path[i].position, path[i + 1].position);
+        }
+    }
+
+    private void drawJumpNodes(List<Polygon> polygons, JumpMap jumpMap)
+    {
+        if (!_ShowJumpNodes)
+            return;
+
+        _SelectedPolygon = Mathf.Clamp(_SelectedPolygon, 0, polygons.Count - 1);
+        Polygon selectedPolygon = polygons[_SelectedPolygon];
+        _SelectedChunk = Mathf.Clamp(_SelectedPolygon, 0, selectedPolygon.getPrecalculatedWalkableChunks().Count - 1);
+        WalkableChunk selectedChunk = polygons[_SelectedPolygon].getPrecalculatedWalkableChunks()[_SelectedChunk];
+        
+        foreach (JumpNode node in jumpMap.getJumpNodes())
+        {
+            foreach((JumpNode neighbour, float cost) in node.getNeighbours())
+            {
+                Gizmos.DrawLine(node.position, neighbour.position);
+                Gizmos.DrawSphere(node.position, 0.1f);
+                Gizmos.DrawSphere(neighbour.position, 0.1f);
+            }
+        }
     }
 
     private void drawTrajectories(List<Polygon> polygons, JumpMap jumpMap)
@@ -92,8 +136,9 @@ public class JumpDetection : MonoBehaviour
         }
     }
 
-    private void drawConnections(JumpMap jumpMap)
+    private void drawPolygonConnections(JumpMap jumpMap)
     {
+        Gizmos.color = Color.red;
         if (_ShowPolygonConnections)
         {
             foreach (WalkableChunk walkableChunk1 in jumpMap.getAllWalkableChunks())

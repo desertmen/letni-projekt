@@ -6,13 +6,13 @@ public class JumpNode : IAStarNode<JumpNode>
 {
     public float g { get ; set ; }
     public float h { get ; set ; }
-    public IAStarNode<JumpNode> parrent { get; set; }
+    public JumpNode parrent { get; set; }
     public int heapIndex { get; set; }
 
     private JumpMap jumpMap;
     private JumpConnectionInfo info;
-    private WalkableChunk chunk;
-    private Vector2 position;
+    public WalkableChunk chunk { get; private set; }
+    public Vector2 position { get; private set; }
 
     private JumpNode intervalNeighbour;
 
@@ -35,7 +35,7 @@ public class JumpNode : IAStarNode<JumpNode>
 
     public float getDistanceToGoal(JumpNode goal)
     {
-        return Vector2.Distance(goal.position, position);
+        return distance(goal);
     }
 
     public List<Tuple<JumpNode, float>> getNeighbours()
@@ -47,7 +47,8 @@ public class JumpNode : IAStarNode<JumpNode>
         
         foreach(JumpNode neighbour in jumpMap.getJumpNodesOnChunk(chunk))
         {
-            neighbours.Add(new Tuple<JumpNode, float>(neighbour, distance(neighbour)));
+            if (neighbour != this)
+                neighbours.Add(new Tuple<JumpNode, float>(neighbour, distance(neighbour)));
         }
 
         return neighbours;

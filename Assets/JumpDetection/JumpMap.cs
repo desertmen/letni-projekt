@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -47,6 +46,23 @@ public class JumpMap
         addToListInDictionary<WalkableChunk, JumpNode>(jumpConnection.destinationChunk, intervalNode, jumpNodesPerChunk);
     }
 
+    public JumpNode getClosestJumpNode(Vector2 position)
+    {
+        float minDist = float.PositiveInfinity;
+        JumpNode minNode = null;
+
+        foreach(JumpNode jumpNode in jumpNodes)
+        {
+            float dist = Vector2.Distance(jumpNode.position, position);
+            if (dist < minDist)
+            {
+                minDist = dist;
+                minNode = jumpNode;
+            }
+        }
+        return minNode;
+    }
+
     public List<JumpNode> getJumpNodesOnChunk(WalkableChunk chunk)
     {
         if(jumpNodesPerChunk.TryGetValue(chunk, out List<JumpNode> jumpNodes)) 
@@ -54,6 +70,11 @@ public class JumpMap
             return jumpNodes; 
         }
         return new List<JumpNode>();
+    }
+
+    public List<JumpNode> getJumpNodes()
+    {
+        return jumpNodes;
     }
 
     public List<WalkableChunk> getAllWalkableChunks() { return walkableChunks; }

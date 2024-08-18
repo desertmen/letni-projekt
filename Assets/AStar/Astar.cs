@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-public class Astar<T> where T : IAStarNode<T>, IHeapItem<T>
+public class Astar<T> where T : IAStarNode<T>
 {
     private Heap<T> open = new Heap<T>(HeapType.MIN_HEAP);
     private HashSet<T> closed = new HashSet<T>();
@@ -17,16 +17,15 @@ public class Astar<T> where T : IAStarNode<T>, IHeapItem<T>
 
     public List<T> getPath()
     {
-        closed.Add(start);
-        foreach((T neighbour, float cost) in start.getNeighbours())
-        {
-            open.push(neighbour);
-            neighbour.h = cost;
-            neighbour.g = neighbour.getDistanceToGoal(goal);
-        }
+        if(start.Equals(goal)) 
+            return new List<T>() { start };
 
         bool found = false;
-        while(!open.isEmpty())
+        start.g = 0;
+        start.h = start.getDistanceToGoal(goal);
+        open.push(start);
+
+        while(!open.isEmpty() && !found)
         {
             T current = open.pop();
             closed.Add(current);
@@ -60,13 +59,22 @@ public class Astar<T> where T : IAStarNode<T>, IHeapItem<T>
                     open.updateUp(neighbour);
                 }
             }
-
-            if (found) 
-                break;
         }
 
+        if (!found)
+        {
+            return null;
+        }
+        
+        List<T> path = new List<T>();
+        T curr = goal;
+        while(curr != null && !curr.Equals(start))
+        {
+            path.Add(curr);
+            curr = curr.parrent;
+        }
+        path.Add(start);
 
-
-        return null;
+        return path;
     }
 }

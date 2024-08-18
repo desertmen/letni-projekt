@@ -799,11 +799,14 @@ MonoBehaviour:
   _SelectedPolygon: 0
   _SelectedChunk: 0
   _SelectedConnection: 6
-  _Mode: 0
-  _ShowTrajectories: 1
-  _ShowAllIntervalsOnChunk: 1
+  _Mode: 1
+  _ShowTrajectories: 0
+  _ShowAllIntervalsOnChunk: 0
   _ShowPolygonConnections: 0
+  _ShowJumpNodes: 0
   _BoundingBoxSize: {x: 0.5, y: 0.5}
+  startHandle: {x: -10.256937, y: 2.736731, z: 0}
+  goalHandle: {x: -1.2214501, y: 0.9524877, z: 0}
 --- !u!4 &1919726406
 Transform:
   m_ObjectHideFlags: 0
