@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Experimental.AI;
 
 public class JumpFinder : MonoBehaviour
 {
-    [SerializeField] private Vector2 _MaxVelocity;
+    [SerializeField] private Vector2 _JumpDirection;
     [SerializeField] [Range(0, 89)] private float _MaxAngle;
     [SerializeField] private int _SelectedPolygon;
     [SerializeField] private int _SelectedChunk;
@@ -16,6 +17,7 @@ public class JumpFinder : MonoBehaviour
     [SerializeField] private bool _ShowAllIntervalsOnChunk;
     [SerializeField] private bool _ShowPolygonConnections;
     [SerializeField] private bool _ShowJumpNodes;
+    [SerializeField] private float _MaxJumpVelocity;
 
     [SerializeField] private Vector2 _BoundingBoxSize;
     private static float gravity = -10;// Physics2D.gravity.y;
@@ -54,39 +56,70 @@ public class JumpFinder : MonoBehaviour
         switch (_Mode)
         {
             case JumpGenerator.Mode.DIRECTED_JUMP:
-                jumpGenerator.setModeDirectedJump(_MaxVelocity); 
+                jumpGenerator.setModeDirectedJump(_JumpDirection); 
                 break;
             case JumpGenerator.Mode.CONST_X_VARIABLE_Y:
-                jumpGenerator.setModeConstXvariableYJump(_MaxVelocity.x);
+                jumpGenerator.setModeConstXvariableYJump(_JumpDirection.x);
                 break;
             case JumpGenerator.Mode.CONST_Y_VARIABLE_X:
-                jumpGenerator.setModeConstYvariableXJump(_MaxVelocity.y);
+                jumpGenerator.setModeConstYvariableXJump(_JumpDirection.y);
                 break;
         }
 
-        JumpMap jumpMap = getJumpMap(polygons, jumpGenerator);
+        JumpMap jumpMap = createJumpMap(polygons);
+        addJumpsToJumpMap(polygons, jumpGenerator, jumpMap);
 
         drawTrajectories(polygons, jumpMap);
         drawPolygonConnections(jumpMap);
         drawJumpNodes(polygons, jumpMap);
-        //DrawSlopeGizmo(new Vector3(0, 5, 0));
 
+        drawHandles();
         JumpNode start = jumpMap.getClosestJumpNode(startHandle);
         JumpNode goal = jumpMap.getClosestJumpNode(goalHandle);
 
-        Astar<JumpNode> astar = new Astar<JumpNode>(start, goal);
-        List<JumpNode> path = astar.getPath();
-        
+        VelocityBoundAStar astar = new VelocityBoundAStar(start, goal, new Vector2(_MaxJumpVelocity, _MaxJumpVelocity));
+        drawPath(start, goal, astar);
+    }
+
+    private void drawHandles()
+    {
         Gizmos.color = Color.green;
         Gizmos.DrawSphere(startHandle, 0.3f);
-        Gizmos.DrawSphere(start.position, 0.2f);
         Gizmos.color = Color.red;
         Gizmos.DrawSphere(goalHandle, 0.3f);
+    }
+
+    private void drawPath(JumpNode start, JumpNode goal, VelocityBoundAStar astar)
+    {
+        List<JumpNode> path = astar.getPath();
+
+        Gizmos.color = Color.red;
         Gizmos.DrawSphere(goal.position, 0.2f);
         Gizmos.color = Color.green;
-        for(int i = 0; i < path.Count - 1; i++)
+        Gizmos.DrawSphere(start.position, 0.2f);
+
+        float lineWidth = 6;
+        Handles.color = Color.green;
+        for (int i = 0; i < path.Count - 1; i++)
         {
-            Gizmos.DrawLine(path[i].position, path[i + 1].position);
+
+            if (path[i].chunk == path[i + 1].chunk)
+            {
+                Gizmos.color = Color.green;
+                Handles.DrawLine(path[i].position, path[i + 1].position, lineWidth);
+            }
+            else if (path[i].position == path[i].info.jumpStart)
+            {
+                drawInterval(path[i].info.hitInterval, path[i].info.jumpStart);
+                Handles.DrawLine(path[i].position, path[i].position + path[i].info.hitInterval.Item1.jumpVelocity.normalized, lineWidth);
+                Handles.DrawLine(path[i].position, path[i].position + path[i].info.hitInterval.Item2.jumpVelocity.normalized, lineWidth);
+            }
+            else
+            {
+                drawInterval(path[i].info.hitInterval, path[i].info.jumpStart);
+                Handles.DrawLine(path[i].position, path[i].position - path[i].info.hitInterval.Item1.impactVelocity.normalized, lineWidth);
+                Handles.DrawLine(path[i].position, path[i].position - path[i].info.hitInterval.Item2.impactVelocity.normalized, lineWidth);
+            }
         }
     }
 
@@ -151,14 +184,18 @@ public class JumpFinder : MonoBehaviour
         }
     }
 
-    private JumpMap getJumpMap(List<Polygon> polygons, JumpGenerator jumpGenerator)
+    private JumpMap createJumpMap(List<Polygon> polygons)
     {
         List<WalkableChunk> allWalkableChunks = new List<WalkableChunk>();
-        foreach(Polygon polygon in polygons)
+        foreach (Polygon polygon in polygons)
         {
             allWalkableChunks.AddRange(polygon.calculateWalkableChunks(_MaxAngle));
         }
-        JumpMap jumpMap = new JumpMap(allWalkableChunks);
+        return new JumpMap(allWalkableChunks);
+    }
+
+    private void addJumpsToJumpMap(List<Polygon> polygons, JumpGenerator jumpGenerator, JumpMap jumpMap)
+    {
         foreach (Polygon polygon in polygons)
         {
             foreach (WalkableChunk walkableChunk in polygon.getPrecalculatedWalkableChunks())
@@ -190,7 +227,6 @@ public class JumpFinder : MonoBehaviour
                 }
             }
         }
-        return jumpMap;
     }
 
     private List<Tuple<JumpHit, JumpHit>> findJumps(Vector2 jumpStart, int jumpDirection, List<Polygon> polygons, JumpGenerator jumpGenerator)
@@ -534,13 +570,13 @@ public class JumpFinder : MonoBehaviour
 
     private void checkSpeed()
     {
-        if (Mathf.Abs(_MaxVelocity.x) == 0)
+        if (Mathf.Abs(_JumpDirection.x) == 0)
         {
-            _MaxVelocity.x = 0.001f;
+            _JumpDirection.x = 0.001f;
         }
-        if (Mathf.Abs(_MaxVelocity.y) <= 0)
+        if (Mathf.Abs(_JumpDirection.y) <= 0)
         {
-            _MaxVelocity.y = 0.001f;
+            _JumpDirection.y = 0.001f;
         }
     }
 

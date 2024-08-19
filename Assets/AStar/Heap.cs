@@ -17,6 +17,11 @@ public class Heap<T> where T : IHeapItem<T>
         this.heapType = heapType;
     }
 
+    public void clear()
+    {
+        heap.Clear();
+    }
+
     public void push(T item)
     {
         heap.Add(item);

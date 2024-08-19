@@ -15,8 +15,16 @@ public class Astar<T> where T : IAStarNode<T>
         this.goal = goal;
     }
 
+    public virtual bool isNeighbourValid(T neighbour, T current)
+    {
+        return true;
+    }
+
     public List<T> getPath()
     {
+        open.clear();
+        closed.Clear();
+
         if(start.Equals(goal)) 
             return new List<T>() { start };
 
@@ -32,15 +40,15 @@ public class Astar<T> where T : IAStarNode<T>
             
             foreach ((T neighbour, float cost) in current.getNeighbours())
             {
+                if (closed.Contains(neighbour) || isNeighbourValid(neighbour, current) == false)
+                    continue;
+
                 if (neighbour.Equals(goal))
                 {
                     goal.parrent = current;
                     found = true;
                     break;
                 }
-
-                if (closed.Contains(neighbour))
-                    continue;
 
                 float newCost = current.g + cost;
 
@@ -62,9 +70,7 @@ public class Astar<T> where T : IAStarNode<T>
         }
 
         if (!found)
-        {
-            return null;
-        }
+            return new List<T>();
         
         List<T> path = new List<T>();
         T curr = goal;
@@ -74,6 +80,7 @@ public class Astar<T> where T : IAStarNode<T>
             curr = curr.parrent;
         }
         path.Add(start);
+        path.Reverse();
 
         return path;
     }

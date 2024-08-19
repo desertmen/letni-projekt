@@ -4,13 +4,13 @@ using UnityEngine;
 
 public class JumpNode : IAStarNode<JumpNode>
 {
-    public float g { get ; set ; }
-    public float h { get ; set ; }
+    public float g { get; set; }
+    public float h { get; set; }
     public JumpNode parrent { get; set; }
     public int heapIndex { get; set; }
 
     private JumpMap jumpMap;
-    private JumpConnectionInfo info;
+    public JumpConnectionInfo info { get; private set; }
     public WalkableChunk chunk { get; private set; }
     public Vector2 position { get; private set; }
 
