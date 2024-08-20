@@ -25,7 +25,7 @@ public class LevelManager : MonoBehaviour
     public Vector3 goalHandle;
 
     // is static so its not 0 in onDrawGizmos
-    private static float gravity = -10;
+    private static float gravity = -10; //Physics2D.gravity.y;
 
     private void OnDrawGizmos()
     {
@@ -79,7 +79,11 @@ public class LevelManager : MonoBehaviour
         {
             _BoundingBoxSize.y = 0.001f;
         }
-        if(gravity > 0)
+        if(gravity == 0)
+        {
+            gravity = -10;
+        }
+        else if(gravity > 0)
         {
             gravity = -gravity;
         }
@@ -106,6 +110,18 @@ public class LevelManager : MonoBehaviour
         }
         return polygons;
     }
+
+    /* GIZMO DRAWING FUNCIIONS -------------------------------------------------------------------------------------------------------------------
+                |
+                |
+                |
+                |
+                |
+            \   |   /
+             \  |  /
+              \ | /
+               \|/
+    */
 
     private void drawHandles()
     {

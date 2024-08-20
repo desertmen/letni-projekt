@@ -12,7 +12,6 @@ public class LevelManagerEditor : Editor
 
 
         EditorGUI.BeginChangeCheck();
-        Debug.Log("XD");
         Vector3 newTarget1Pos = Handles.PositionHandle(jumpFinder.startHandle, Quaternion.identity);
         Vector3 newTarget2Pos = Handles.PositionHandle(jumpFinder.goalHandle, Quaternion.identity);
         if (EditorGUI.EndChangeCheck())

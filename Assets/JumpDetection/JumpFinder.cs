@@ -18,11 +18,6 @@ public class JumpFinder
         this.gravity = gravity;
         this.polygons = polygons;
         this._BoundingBoxSize = BoundingBoxSize;
-
-        foreach(Polygon polygon in polygons)
-        {
-            polygon.calculateWalkableChunks(maxWalkableAngle);
-        }
     }
 
     private struct TargetInfo
