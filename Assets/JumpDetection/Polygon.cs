@@ -63,6 +63,13 @@ public class Polygon
         }
     }
 
+    public WalkableChunk getWalkableChunkTouching(Vector2 center, Vector2 boxSize)
+    {
+        if (walkableChunks.Count == 1)
+            return walkableChunks[0];
+        //TODO - fing walkable chunk touched or closest do bbox
+    }
+
     public Vector2[] getEdgePoints(Edge edge)
     {
         return new Vector2[2] { points[edge.Item1], points[edge.Item2] };

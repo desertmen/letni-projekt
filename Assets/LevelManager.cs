@@ -5,71 +5,117 @@ using UnityEngine;
 
 public class LevelManager : MonoBehaviour
 {
-    [SerializeField] private Vector2 _JumpDirection;
-    [SerializeField][Range(0, 89)] private float _MaxAngle;
+// ------------------ debuging gizmos stuff
     [SerializeField] private int _SelectedPolygon;
     [SerializeField] private int _SelectedChunk;
     [SerializeField] private int _SelectedConnection;
-    [SerializeField] private JumpGenerator.Mode _Mode;
-    [SerializeField] private bool _ShowTrajectories;
-    [SerializeField] private bool _ShowAllIntervalsOnChunk;
+    [SerializeField] public bool _ShowTrajectories;
+    [SerializeField] public bool _ShowAllIntervalsOnChunk;
     [SerializeField] private bool _ShowPolygonConnections;
     [SerializeField] private bool _ShowJumpNodes;
-    [SerializeField] private float _MaxJumpVelocity;
-    [SerializeField] private Vector2 _BoundingBoxSize;
-
+    [SerializeField] public bool _ShowHandlesPath;
+    [SerializeField] private float _MaxHandleJump;
 
     [HideInInspector]
     public Vector3 startHandle;
     [HideInInspector]
     public Vector3 goalHandle;
 
+// ------------------ actually needed
+    [SerializeField] [Range(0, 89)] private float _MaxAngle;
+    [SerializeField] private Vector2 _BoundingBoxSize;
+    [SerializeField] private List<JumpGenerator.JumpGeneratorInput> _JumpGenerators;
+
+    // static for gizmo purposes
+    private static JumpMap jumpMap = null;
+    private static List<Polygon> polygons = null;
+
     // is static so its not 0 in onDrawGizmos
     private static float gravity = -10; //Physics2D.gravity.y;
 
+    private void Awake()
+    {
+        generateJumpMap();
+    }
+    
     private void OnDrawGizmos()
     {
-        checkInputs();
-        JumpGenerator jumpGenerator = new JumpGenerator(gravity);
-        switch (_Mode)
+        if (jumpMap == null || polygons == null)
         {
-            case JumpGenerator.Mode.DIRECTED_JUMP:
-                jumpGenerator.setModeDirectedJump(_JumpDirection);
-                break;
-            case JumpGenerator.Mode.CONST_X_VARIABLE_Y:
-                jumpGenerator.setModeConstXvariableYJump(_JumpDirection.x);
-                break;
-            case JumpGenerator.Mode.CONST_Y_VARIABLE_X:
-                jumpGenerator.setModeConstYvariableXJump(_JumpDirection.y);
-                break;
+            generateJumpMap();
         }
-        List<JumpGenerator> jumpGenerators = new List<JumpGenerator>() { jumpGenerator };
-
-        List<Polygon> polygons = getChildrenPolygons(_MaxAngle);
-        JumpFinder jumpFinder = new JumpFinder(_MaxAngle, gravity, _BoundingBoxSize, polygons);
-        JumpMap jumpMap = jumpFinder.generateJumpMap(jumpGenerators);
 
         drawTrajectories(polygons, jumpMap);
         drawPolygonConnections(jumpMap);
         drawJumpNodes(polygons, jumpMap);
+        drawPathBetweenHandles(jumpMap);
+    }
 
-        drawHandles();
-        JumpNode start = jumpMap.getClosestJumpNode(startHandle);
-        JumpNode goal = jumpMap.getClosestJumpNode(goalHandle);
+    public List<JumpNode> getPaths(Vector2 start, Vector2 goal, Vector2 maxJump)
+    {
+        JumpNode startNode = jumpMap.getClosestJumpNodeUnderBox(start, _BoundingBoxSize.x);
+        JumpNode goalNode = jumpMap.getClosestJumpNodeUnderBox(goal, _BoundingBoxSize.x);
+        VelocityBoundAStar aStar = new VelocityBoundAStar(startNode, goalNode, maxJump);
+        return aStar.getPath();
+    }
 
-        VelocityBoundAStar astar = new VelocityBoundAStar(start, goal, new Vector2(_MaxJumpVelocity, _MaxJumpVelocity));
-        drawPath(start, goal, astar);
+    // TODO - create multiple maps for multiple bbox sizes
+    public void generateJumpMap()
+    {
+        DateTime before = DateTime.Now;
+
+        checkInputs();
+
+        polygons = getChildrenPolygons(_MaxAngle);
+        List<JumpGenerator> jumpGenerators = new List<JumpGenerator>();
+        foreach (JumpGenerator.JumpGeneratorInput input in _JumpGenerators)
+        {
+            JumpGenerator jumpGenerator = new JumpGenerator(gravity);
+            switch (input.mode)
+            {
+                case JumpGenerator.Mode.DIRECTED_JUMP:
+                    jumpGenerator.setModeDirectedJump(input.direction);
+                    break;
+                case JumpGenerator.Mode.CONST_X_VARIABLE_Y:
+                    jumpGenerator.setModeConstXvariableYJump(input.velocity);
+                    break;
+                case JumpGenerator.Mode.CONST_Y_VARIABLE_X:
+                    jumpGenerator.setModeConstYvariableXJump(input.velocity);
+                    break;
+            }
+            jumpGenerators.Add(jumpGenerator);
+        }
+
+        JumpFinder jumpFinder = new JumpFinder(_MaxAngle, gravity, _BoundingBoxSize, polygons);
+        jumpMap = jumpFinder.generateJumpMap(jumpGenerators);
+
+        DateTime after = DateTime.Now;
+        TimeSpan duration = after.Subtract(before);
+        Debug.Log($"Generated jumpMap in {duration.Milliseconds}ms");
     }
 
     private void checkInputs()
     {
-        if (Mathf.Abs(_JumpDirection.x) == 0)
+        foreach(JumpGenerator.JumpGeneratorInput input in _JumpGenerators)
         {
-            _JumpDirection.x = 0.001f;
-        }
-        if (Mathf.Abs(_JumpDirection.y) <= 0)
-        {
-            _JumpDirection.y = 0.001f;
+            for(int i = 0; i< _JumpGenerators.Count; i++)
+            {
+                if(input.mode == JumpGenerator.Mode.DIRECTED_JUMP)
+                {
+                    if (Mathf.Abs(input.direction.x) == 0)
+                    {
+                        Debug.LogError($"Jumgenerators (Element {i}) DIRECTED_JUMP must have Non-Zero X value");
+                    }
+                    if (Mathf.Abs(input.direction.y) <= 0)
+                    {
+                        Debug.LogError($"Jumgenerators (Element {i}) DIRECTED_JUMP must have positive Y value");
+                    }   
+                }
+                if(input.mode == JumpGenerator.Mode.CONST_Y_VARIABLE_X && input.velocity <= 0)
+                {
+                    Debug.LogError($"Jumgenerators (Element {i}) CONST_Y_VARIABLE_X must have positive Y value");
+                }
+            }
         }
         if(_BoundingBoxSize.x <= 0)
         {
@@ -111,7 +157,7 @@ public class LevelManager : MonoBehaviour
         return polygons;
     }
 
-    /* GIZMO DRAWING FUNCIIONS -------------------------------------------------------------------------------------------------------------------
+    /* GIZMO DRAWING FUNCTIONS -------------------------------------------------------------------------------------------------------------------
                 |
                 |
                 |
@@ -129,6 +175,19 @@ public class LevelManager : MonoBehaviour
         Gizmos.DrawSphere(startHandle, 0.3f);
         Gizmos.color = Color.red;
         Gizmos.DrawSphere(goalHandle, 0.3f);
+    }
+
+    private void drawPathBetweenHandles(JumpMap jumpMap)
+    {
+        if(_ShowHandlesPath)
+        {
+            drawHandles();
+            JumpNode start = jumpMap.getClosestJumpNode(startHandle);
+            JumpNode goal = jumpMap.getClosestJumpNode(goalHandle);
+
+            VelocityBoundAStar astar = new VelocityBoundAStar(start, goal, new Vector2(_MaxHandleJump, _MaxHandleJump));
+            drawPath(start, goal, astar);
+        }
     }
 
     private void drawPath(JumpNode start, JumpNode goal, VelocityBoundAStar astar)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 public class JumpMap
 {
@@ -55,6 +56,33 @@ public class JumpMap
         {
             float dist = Vector2.Distance(jumpNode.position, position);
             if (dist < minDist)
+            {
+                minDist = dist;
+                minNode = jumpNode;
+            }
+        }
+        return minNode;
+    }
+
+    public JumpNode getClosestJumpNodeUnderBox(Vector2 position, float boxWidth)
+    {
+        float minDist = float.PositiveInfinity;
+        JumpNode minNode = null;
+
+        foreach (JumpNode jumpNode in jumpNodes)
+        {
+            float dist = Vector2.Distance(jumpNode.position, position);
+            bool isChunkNodeUnder = false;
+            for(int i = 0; i < jumpNode.chunk.positions.Count - 1; i++)
+            {
+                (Vector2 left, Vector2 right) = MyUtils.Logic.getLeftRightVector2(jumpNode.chunk.positions[i], jumpNode.chunk.positions[i + 1]);
+                if(left.x <= position.x + boxWidth/2 && position.x - boxWidth/2 <= right.x && (position.y >= left.y || position.y >= right.y))
+                {
+                    isChunkNodeUnder = true;
+                    break;
+                }
+            }
+            if (dist < minDist && isChunkNodeUnder)
             {
                 minDist = dist;
                 minNode = jumpNode;
