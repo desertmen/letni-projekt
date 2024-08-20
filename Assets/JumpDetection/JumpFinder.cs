@@ -8,16 +8,16 @@ public class JumpFinder
     private const int RIGHT = 1;
 
     private float _MaxAngle;
-    private float gravity;
-    private List<Polygon> polygons;
+    private float _Gravity;
+    private List<Polygon> _Polygons;
     private Vector2 _BoundingBoxSize;
 
-    public JumpFinder(float maxWalkableAngle, float gravity, Vector2 BoundingBoxSize, List<Polygon> polygons)
+    public JumpFinder(float maxWalkableAngle, float gravity, Vector2 boundingBoxSize, List<Polygon> polygons)
     {
         this._MaxAngle = maxWalkableAngle;
-        this.gravity = gravity;
-        this.polygons = polygons;
-        this._BoundingBoxSize = BoundingBoxSize;
+        this._Gravity = gravity;
+        this._Polygons = polygons;
+        this._BoundingBoxSize = boundingBoxSize;
     }
 
     private struct TargetInfo
@@ -36,27 +36,27 @@ public class JumpFinder
 
     public JumpMap generateJumpMap(List<JumpGenerator> jumpGenerators)
     {
-        JumpMap jumpMap = new JumpMap(getAllWalkableChunks(polygons));
+        JumpMap jumpMap = new JumpMap(getAllWalkableChunks());
         foreach(JumpGenerator jumpGenerator in jumpGenerators)
         {
-            addJumpsToJumpMap(polygons, jumpGenerator, jumpMap);
+            addJumpsToJumpMap(jumpGenerator, jumpMap);
         }
         return jumpMap;
     }
 
-    private List<WalkableChunk> getAllWalkableChunks(List<Polygon> polygons)
+    private List<WalkableChunk> getAllWalkableChunks()
     {
         List<WalkableChunk> allWalkableChunks = new List<WalkableChunk>();
-        foreach (Polygon polygon in polygons)
+        foreach (Polygon polygon in _Polygons)
         {
             allWalkableChunks.AddRange(polygon.calculateWalkableChunks(_MaxAngle));
         }
         return allWalkableChunks;
     }
 
-    private void addJumpsToJumpMap(List<Polygon> polygons, JumpGenerator jumpGenerator, JumpMap jumpMap)
+    private void addJumpsToJumpMap(JumpGenerator jumpGenerator, JumpMap jumpMap)
     {
-        foreach (Polygon polygon in polygons)
+        foreach (Polygon polygon in _Polygons)
         {
             foreach (WalkableChunk walkableChunk in polygon.getPrecalculatedWalkableChunks())
             {
@@ -68,8 +68,8 @@ public class JumpFinder
                 rightCorner = allignJumpStart(rightCorner, _BoundingBoxSize, RIGHT, polygon);
 
                 List<Tuple<JumpHit, JumpHit>> intervals = new List<Tuple<JumpHit, JumpHit>>();
-                List<Tuple<JumpHit, JumpHit>> leftIntervals = findJumps(leftCorner, LEFT, polygons, jumpGenerator);
-                List<Tuple<JumpHit, JumpHit>> rightIntervals = findJumps(rightCorner, RIGHT, polygons, jumpGenerator);
+                List<Tuple<JumpHit, JumpHit>> leftIntervals = findJumps(leftCorner, LEFT, jumpGenerator);
+                List<Tuple<JumpHit, JumpHit>> rightIntervals = findJumps(rightCorner, RIGHT, jumpGenerator);
 
                 intervals.AddRange(leftIntervals);
                 intervals.AddRange(rightIntervals);
@@ -89,12 +89,12 @@ public class JumpFinder
         }
     }
 
-    private List<Tuple<JumpHit, JumpHit>> findJumps(Vector2 jumpStart, int jumpDirection, List<Polygon> polygons, JumpGenerator jumpGenerator)
+    private List<Tuple<JumpHit, JumpHit>> findJumps(Vector2 jumpStart, int jumpDirection, JumpGenerator jumpGenerator)
     {
         List<Tuple<JumpHit, JumpHit>> allIntervals = new List<Tuple<JumpHit, JumpHit>>();
 
         // find targets
-        List<TargetInfo> targets = getTargetsInfo(jumpStart, jumpDirection, polygons);
+        List<TargetInfo> targets = getTargetsInfo(jumpStart, jumpDirection);
         if (targets.Count == 0)
             return allIntervals;
 
@@ -110,12 +110,12 @@ public class JumpFinder
                 continue;
             }
             //allTargetsHit &= testBoxJump(jumpStart, target, jumpGenerator, polygons, ref landingHitsPerJump);
-            allTargetsBellowHit &= testBoxJump(jumpStart, target, jumpGenerator, polygons, jumpDirection, ref landingHitsPerJump) || target.position.y > jumpStart.y;
+            allTargetsBellowHit &= testBoxJump(jumpStart, target, jumpGenerator, jumpDirection, ref landingHitsPerJump) || target.position.y > jumpStart.y;
         }
         // test jump down if possible
         if (allTargetsBellowHit)
         {
-            testBoxJump(jumpStart, jumpStartTarget, jumpGenerator, polygons, jumpDirection, ref landingHitsPerJump);
+            testBoxJump(jumpStart, jumpStartTarget, jumpGenerator, jumpDirection, ref landingHitsPerJump);
         }
 
         // create intervals
@@ -208,8 +208,8 @@ public class JumpFinder
 
         chunkHits.Sort((JumpHit hit1, JumpHit hit2) =>
         {
-            BoxJumpTrajectory jump1 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit1.jumpVelocity, gravity);
-            BoxJumpTrajectory jump2 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit2.jumpVelocity, gravity);
+            BoxJumpTrajectory jump1 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit1.jumpVelocity, _Gravity);
+            BoxJumpTrajectory jump2 = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, hit2.jumpVelocity, _Gravity);
             return jump1.getCornerPositionInTime(hit1.time, BoxJumpTrajectory.BOTTOM_LEFT).x.CompareTo(jump2.getCornerPositionInTime(hit2.time, BoxJumpTrajectory.BOTTOM_LEFT).x);
         });
 
@@ -270,7 +270,7 @@ public class JumpFinder
     }
 
     // returns false if target cant be reached with jumpGenerators current configuration
-    private bool testBoxJump(Vector2 jumpStart, TargetInfo target, JumpGenerator jumpGenerator, List<Polygon> polygons, int direction, ref List<List<JumpHit>> landingHitsPerJump)
+    private bool testBoxJump(Vector2 jumpStart, TargetInfo target, JumpGenerator jumpGenerator, int direction, ref List<List<JumpHit>> landingHitsPerJump)
     {
         Vector2[] jumpStartCorners = BoxJumpTrajectory.getCorners(jumpStart, _BoundingBoxSize, direction);
         foreach (Vector2 boxHitCorner in jumpStartCorners)
@@ -282,8 +282,8 @@ public class JumpFinder
                 return false;
             }
 
-            BoxJumpTrajectory jump = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, velocity, gravity);
-            List<JumpHit> jumpHits = testJump(jump, polygons);
+            BoxJumpTrajectory jump = new BoxJumpTrajectory(jumpStart, _BoundingBoxSize, velocity, _Gravity);
+            List<JumpHit> jumpHits = testJump(jump);
             prepareJumpHits(target.position, target.edge, target.polygon, jump, boxHitCorner, jumpHits);
 
             List<JumpHit> landingHits = getLandingHits(jumpHits, target.position, jump);
@@ -321,12 +321,12 @@ public class JumpFinder
         return landingHits;
     }
 
-    private List<TargetInfo> getTargetsInfo(Vector2 jumpStart, int jumpDirection, List<Polygon> polygons)
+    private List<TargetInfo> getTargetsInfo(Vector2 jumpStart, int jumpDirection)
     {
         List<TargetInfo> targets = new List<TargetInfo>();
 
         // find targets and create dictionary containing each targets edge and polygon
-        foreach (Polygon polygon in polygons)
+        foreach (Polygon polygon in _Polygons)
         {
             foreach (Vector2 point in polygon.points)
             {
@@ -362,11 +362,11 @@ public class JumpFinder
         return targets;
     }
 
-    private List<JumpHit> testJump(BoxJumpTrajectory jump, List<Polygon> polygons)
+    private List<JumpHit> testJump(BoxJumpTrajectory jump)
     {
         List<JumpHit> jumpHits = new List<JumpHit>();
         // test collisions with every edge
-        foreach (Polygon polygon in polygons)
+        foreach (Polygon polygon in _Polygons)
         {
             foreach (Edge edge in polygon.edges)
             {
