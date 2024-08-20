@@ -932,7 +932,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1919726406}
-  - component: {fileID: 1919726405}
+  - component: {fileID: 1919726407}
   m_Layer: 0
   m_Name: Level
   m_TagString: Untagged
@@ -940,32 +940,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1919726405
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1919726404}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 224f7db131f3e12488b122951061168e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _JumpDirection: {x: 6, y: 8}
-  _MaxAngle: 42.6
-  _SelectedPolygon: 0
-  _SelectedChunk: 0
-  _SelectedConnection: 6
-  _Mode: 0
-  _ShowTrajectories: 0
-  _ShowAllIntervalsOnChunk: 0
-  _ShowPolygonConnections: 0
-  _ShowJumpNodes: 0
-  _MaxJumpVelocity: 6.6
-  _BoundingBoxSize: {x: 0.5, y: 0.5}
-  startHandle: {x: 5.352579, y: 1.8573275, z: 0}
-  goalHandle: {x: -9.078501, y: 2.8000102, z: 0}
 --- !u!4 &1919726406
 Transform:
   m_ObjectHideFlags: 0
@@ -986,6 +960,32 @@ Transform:
   - {fileID: 1721776593}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1919726407
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1919726404}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9a17d347fee2d9c4ea982379ed2f1f10, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _JumpDirection: {x: 6, y: 8}
+  _MaxAngle: 89
+  _SelectedPolygon: 0
+  _SelectedChunk: 0
+  _SelectedConnection: 0
+  _Mode: 0
+  _ShowTrajectories: 0
+  _ShowAllIntervalsOnChunk: 0
+  _ShowPolygonConnections: 0
+  _ShowJumpNodes: 0
+  _MaxJumpVelocity: 5.15
+  _BoundingBoxSize: {x: 0.5, y: 0.5}
+  startHandle: {x: -9.967114, y: 3.4873111, z: 0}
+  goalHandle: {x: 5.6550994, y: 2.0499735, z: 0}
 --- !u!1 &1925892277
 GameObject:
   m_ObjectHideFlags: 0

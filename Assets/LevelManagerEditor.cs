@@ -1,16 +1,18 @@
 using UnityEngine;
 using UnityEditor;
 
-[CustomEditor(typeof(JumpFinder))]
-public class JumpFinderEditor : Editor
+[CustomEditor(typeof(LevelManager))]
+public class LevelManagerEditor : Editor
 {
     private void OnSceneGUI()
     {
         DrawDefaultInspector();
 
-        JumpFinder jumpFinder = (JumpFinder)target;
+        LevelManager jumpFinder = (LevelManager)target;
+
 
         EditorGUI.BeginChangeCheck();
+        Debug.Log("XD");
         Vector3 newTarget1Pos = Handles.PositionHandle(jumpFinder.startHandle, Quaternion.identity);
         Vector3 newTarget2Pos = Handles.PositionHandle(jumpFinder.goalHandle, Quaternion.identity);
         if (EditorGUI.EndChangeCheck())
