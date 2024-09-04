@@ -5,8 +5,6 @@ using UnityEngine;
 [RequireComponent(typeof(NPCMovent))]
 public class NPCNavigator : MonoBehaviour
 {
-    [SerializeField] private Vector2 _MaxJump;
-    [SerializeField] private float _MaxRunningSpeed;
     [SerializeField] private Stategy _Strategy = Stategy.TIGHT_JUMP;
     [SerializeField] private float _MaxDistFromEdge;
     
@@ -19,8 +17,8 @@ public class NPCNavigator : MonoBehaviour
     private List<JumpNode> path;
     private int targetNodeIdx;
     private Vector2 size;
-
-
+    private Vector2 maxJump;
+    private float maxRunningSpeed;
     
     [Serializable] public enum Stategy
     {
@@ -34,6 +32,8 @@ public class NPCNavigator : MonoBehaviour
         size = GetComponent<BoxCollider2D>().bounds.size;
         npcMovement = GetComponent<NPCMovent>();
         npcMovement.setActionOnLanding(onLanding);
+        maxJump = npcMovement.getMaxJump();
+        maxRunningSpeed = npcMovement.getMaxRunningSpeed();
         updatePath();
         targetNodeIdx = 0;
     }
@@ -59,37 +59,30 @@ public class NPCNavigator : MonoBehaviour
             }
             Gizmos.DrawSphere(path[path.Count - 1].position, 0.1f);
         }
-
-        if(path != null && targetNodeIdx < path.Count - 1)
-        {
-            GetComponent<SpriteRenderer>().color = npcMovement.isGrounded() ? Color.white : Color.black;
-        }
     }
 
     private List<JumpNode> lastPath = null;
     private float jumpMultiplier = 1;
     private void followPath()
     {
-        // npc reached last node
-        if (isPointsUnderBBox(path[path.Count - 1].position))
+        JumpNode currNode = path[targetNodeIdx];
+        JumpNode nextNode = targetNodeIdx < path.Count - 1 ? path[targetNodeIdx + 1] : null;
+
+        if (reachedLastNode())
         {
             targetTest.changePosition();
             updatePath();
             return;
         }
 
-        JumpNode currNode = path[targetNodeIdx];
-        JumpNode nextNode = targetNodeIdx < path.Count - 1 ? path[targetNodeIdx + 1] : null;
-
         // missed jump -> update path
-        if(npcMovement.isGrounded() && currentChunk != currNode.chunk)
+        if(isNotOnPath(currNode))
         {
             updatePath();
             if (isPathRepeating())
-                jumpMultiplier += 0.1f;
+                jumpMultiplier += 0.2f;
             return;
         }
-            
         jumpMultiplier = isPathRepeating() ? jumpMultiplier : 1;
 
         tryToShortenPath(ref currNode, ref nextNode);
@@ -116,6 +109,16 @@ public class NPCNavigator : MonoBehaviour
                 npcMovement.startGoingLeft();
             }
         }
+    }
+
+    private bool reachedLastNode()
+    {
+        return targetNodeIdx == path.Count - 1 && isPointsUnderBBox(path[path.Count - 1].position);
+    }
+
+    private bool isNotOnPath(JumpNode currNode)
+    {
+        return npcMovement.isGrounded() && currentChunk != currNode.chunk;
     }
 
     private bool isPathRepeating()
@@ -160,62 +163,67 @@ public class NPCNavigator : MonoBehaviour
 
     private Vector2 getJumpVelocity(JumpNode currNode, JumpNode nextNode)
     {
+        switch(_Strategy)
+        {
+            case Stategy.ANY_JUMP:
+                return getJumpVelocityFromStategy_ANY_JUMP(currNode, nextNode);
+            case Stategy.TIGHT_JUMP:
+                return getJumpVelocityFromStategy_TIGHT_JUMP(currNode, nextNode);
+            default:
+                return Vector2.zero;
+        }
+    }
+
+    private Vector2 getJumpVelocityFromStategy_TIGHT_JUMP(JumpNode currNode, JumpNode nextNode)
+    {
         if (isNodeJumpStart(currNode))
         {
             (JumpHit leftHit, JumpHit rightHit) = MyUtils.Math.getMinMax<JumpHit>(nextNode.info.hitInterval.Item1, nextNode.info.hitInterval.Item2, (hit) => hit.position.x);
-
-            switch (_Strategy)
+            float intervalWidth = rightHit.position.x - leftHit.position.x;
+            if (intervalWidth > size.x)
             {
-                case Stategy.ANY_JUMP:
-                    return Vector2.Lerp(leftHit.jumpVelocity, rightHit.jumpVelocity, 0.5f);
-
-                case Stategy.TIGHT_JUMP:
-                    float intervalWidth = rightHit.position.x - leftHit.position.x;
-                    if (intervalWidth > size.x)
-                    {
-                        int dir = (int)Mathf.Sign(nextNode.position.x - currNode.position.x);
-                        float t = (size.x) / intervalWidth;
-                        t = -dir * t + ((dir + 1) / 2f);
-                        t = 1 - t;
-                        Debug.Log($"jumpstart lerp, l: {leftHit.jumpVelocity}, r:{rightHit.jumpVelocity}, t: {t}");
-                        return Vector2.Lerp(leftHit.jumpVelocity, rightHit.jumpVelocity, t);
-                    }
-                    else
-                    {
-                        return Vector2.Lerp(leftHit.jumpVelocity, rightHit.jumpVelocity, 0.5f);
-                    }
-
-                default:
-                    return Vector2.negativeInfinity;
+                int dir = (int)Mathf.Sign(nextNode.position.x - currNode.position.x);
+                float t = (size.x) / intervalWidth;
+                t = -dir * t + ((dir + 1) / 2f);
+                t = 1 - t;
+                Debug.Log($"jumpstart lerp, l: {leftHit.jumpVelocity}, r:{rightHit.jumpVelocity}, t: {t}");
+                return Vector2.Lerp(leftHit.jumpVelocity, rightHit.jumpVelocity, t);
+            }
+            else
+            {
+                return Vector2.Lerp(leftHit.jumpVelocity, rightHit.jumpVelocity, 0.5f);
             }
         }
         else
         {
             (JumpHit leftHit, JumpHit rightHit) = MyUtils.Math.getMinMax<JumpHit>(currNode.info.hitInterval.Item1, currNode.info.hitInterval.Item2, (hit) => hit.position.x);
-
-            switch (_Strategy)
+            float intervalWidth = rightHit.position.x - leftHit.position.x;
+            if (intervalWidth > size.x)
             {
-                case Stategy.ANY_JUMP:
-                    return Vector2.Lerp(-leftHit.impactVelocity, -rightHit.impactVelocity, 0.5f);
-                
-                case Stategy.TIGHT_JUMP:
-                    float intervalWidth = rightHit.position.x - leftHit.position.x;
-                    if (intervalWidth > size.x)
-                    {
-                        int dir = (int)Mathf.Sign(nextNode.position.x - currNode.position.x);
-                        float t = (size.x) / intervalWidth;
-                        t = -dir * t + ((dir + 1) / 2f);
-                        Debug.Log($"interval lerp, l: {-leftHit.impactVelocity}, r:{-rightHit.impactVelocity}, t: {t}");
-                        return Vector2.Lerp(-leftHit.impactVelocity, -rightHit.impactVelocity, t);
-                    }
-                    else
-                    {
-                        return Vector2.Lerp(-leftHit.impactVelocity, -rightHit.impactVelocity, 0.5f);
-                    }
-
-                default:
-                    return Vector2.negativeInfinity;
+                int dir = (int)Mathf.Sign(nextNode.position.x - currNode.position.x);
+                float t = (size.x) / intervalWidth;
+                t = -dir * t + ((dir + 1) / 2f);
+                Debug.Log($"interval lerp, l: {-leftHit.impactVelocity}, r:{-rightHit.impactVelocity}, t: {t}");
+                return Vector2.Lerp(-leftHit.impactVelocity, -rightHit.impactVelocity, t);
             }
+            else
+            {
+                return Vector2.Lerp(-leftHit.impactVelocity, -rightHit.impactVelocity, 0.5f);
+            }
+        }
+    }
+
+    private Vector2 getJumpVelocityFromStategy_ANY_JUMP(JumpNode currNode, JumpNode nextNode)
+    {
+        if (isNodeJumpStart(currNode))
+        {
+            (JumpHit leftHit, JumpHit rightHit) = MyUtils.Math.getMinMax<JumpHit>(nextNode.info.hitInterval.Item1, nextNode.info.hitInterval.Item2, (hit) => hit.position.x);
+            return Vector2.Lerp(leftHit.jumpVelocity, rightHit.jumpVelocity, 0.5f);
+        }
+        else
+        {
+            (JumpHit leftHit, JumpHit rightHit) = MyUtils.Math.getMinMax<JumpHit>(currNode.info.hitInterval.Item1, currNode.info.hitInterval.Item2, (hit) => hit.position.x);
+            return Vector2.Lerp(-leftHit.impactVelocity, -rightHit.impactVelocity, 0.5f);
         }
     }
 
@@ -239,45 +247,64 @@ public class NPCNavigator : MonoBehaviour
     {
         if (nextNode == null || currNode.chunk == nextNode.chunk)
             return false;
-
+        
         if (isNodeJumpStart(currNode))
         {
             if (isPointsUnderBBox(currNode.info.jumpStart))
                 return true;
             return false;
         }
-        else
+        else // node is interval -> allign jump according to strategy
         {
-            Tuple<JumpHit, JumpHit> interval = currNode.info.hitInterval;
-            (JumpHit leftHit, JumpHit rightHit) = MyUtils.Math.getMinMax<JumpHit>(interval.Item1, interval.Item2, (hit) => hit.position.x);
-            Vector2 BLcorner = (Vector2)transform.position - size / 2f;
-            Vector2 BRcorner = (Vector2)transform.position + new Vector2(size.x / 2f, -size.y /2f);
-            int dir = (int)Mathf.Sign(nextNode.position.x - currNode.position.x);
             switch (_Strategy)
             {
                 case Stategy.ANY_JUMP:
                     // is box inside hit interval
-                    if (dir == MyUtils.Constants.RIGHT)
-                    {
-                        return leftHit.position.x <= BRcorner.x && BRcorner.x <= rightHit.position.x;
-                    }
-                    else
-                    {
-                        return leftHit.position.x <= BLcorner.x && BLcorner.x <= rightHit.position.x;
-                    }
+                    return shouldJumpWithStategy_ANY_JUMP(currNode, nextNode);
                 case Stategy.TIGHT_JUMP:
-                    if(dir == MyUtils.Constants.RIGHT)
-                    {
-                        float dist = rightHit.position.x - BRcorner.x;
-                        return dist < _MaxDistFromEdge && leftHit.position.x <= BRcorner.x && BRcorner.x <= rightHit.position.x;
-                    }
-                    else {
-                        float dist = BLcorner.x - leftHit.position.x;
-                        return dist < _MaxDistFromEdge && leftHit.position.x <= BLcorner.x && BLcorner.x <= rightHit.position.x;
-                    }
+                    // is box close enough to edge of interval
+                    return shouldJumpWithStategy_TIGHT_JUMP(currNode, nextNode);
             }
         }
         return false;
+    }
+
+    private bool shouldJumpWithStategy_TIGHT_JUMP(JumpNode currNode, JumpNode nextNode)
+    {
+        Tuple<JumpHit, JumpHit> interval = currNode.info.hitInterval;
+        (JumpHit leftHit, JumpHit rightHit) = MyUtils.Math.getMinMax<JumpHit>(interval.Item1, interval.Item2, (hit) => hit.position.x);
+        Vector2 BLcorner = (Vector2)transform.position - size / 2f;
+        Vector2 BRcorner = (Vector2)transform.position + new Vector2(size.x / 2f, -size.y / 2f);
+        int dir = (int)Mathf.Sign(nextNode.position.x - currNode.position.x);
+
+        if (dir == MyUtils.Constants.RIGHT)
+        {
+            float dist = rightHit.position.x - BRcorner.x;
+            return dist < _MaxDistFromEdge && leftHit.position.x <= BRcorner.x && BRcorner.x <= rightHit.position.x;
+        }
+        else
+        {
+            float dist = BLcorner.x - leftHit.position.x;
+            return dist < _MaxDistFromEdge && leftHit.position.x <= BLcorner.x && BLcorner.x <= rightHit.position.x;
+        }
+    }
+
+    private bool shouldJumpWithStategy_ANY_JUMP(JumpNode currNode, JumpNode nextNode)
+    {
+        Tuple<JumpHit, JumpHit> interval = currNode.info.hitInterval;
+        (JumpHit leftHit, JumpHit rightHit) = MyUtils.Math.getMinMax<JumpHit>(interval.Item1, interval.Item2, (hit) => hit.position.x);
+        Vector2 BLcorner = (Vector2)transform.position - size / 2f;
+        Vector2 BRcorner = (Vector2)transform.position + new Vector2(size.x / 2f, -size.y / 2f);
+        int dir = (int)Mathf.Sign(nextNode.position.x - currNode.position.x);
+
+        if (dir == MyUtils.Constants.RIGHT)
+        {
+            return leftHit.position.x <= BRcorner.x && BRcorner.x <= rightHit.position.x;
+        }
+        else
+        {
+            return leftHit.position.x <= BLcorner.x && BLcorner.x <= rightHit.position.x;
+        }
     }
 
     private bool isPointsUnderBBox(Vector2 position)
@@ -300,7 +327,7 @@ public class NPCNavigator : MonoBehaviour
     private void updatePath()
     {
         lastPath = path;
-        path = levelManager.getPath(transform.position, target.transform.position, _MaxJump, size.x);
+        path = levelManager.getPath(transform.position, target.transform.position, maxJump, size.x);
         // path should start on same chunk as box
         targetNodeIdx = 0;
         currentChunk = path[0].chunk;
@@ -309,8 +336,6 @@ public class NPCNavigator : MonoBehaviour
     private void onLanding(Polygon landingPolygon)
     {
         WalkableChunk newWalkableChunk = landingPolygon.getWalkableChunkTouching(transform.position, size);
-        if (newWalkableChunk == null)
-            return;
         Debug.Log("WALKABLE CHUNK CANGED" + newWalkableChunk.positions[0] + ", grounded : " + npcMovement.isGrounded());
         currentChunk = newWalkableChunk;
     }
@@ -322,7 +347,7 @@ public class NPCNavigator : MonoBehaviour
 
     public float getMaxRunningSpeed()
     {
-        return _MaxRunningSpeed;
+        return maxRunningSpeed;
     }
 
 }

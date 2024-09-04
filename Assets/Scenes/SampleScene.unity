@@ -851,7 +851,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_Sprite: {fileID: 7482667652216324306, guid: 311925a002f4447b3a28927169b83ea6, type: 3}
-  m_Color: {r: 0.98564005, g: 0, b: 1, a: 1}
+  m_Color: {r: 0, g: 1, b: 0, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -915,8 +915,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 550228d8e3f1e404fb37b2b496334423, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _MaxJump: {x: 5, y: 7}
-  _MaxRunningSpeed: 5
   _Strategy: 1
   _MaxDistFromEdge: 0.2
   target: {fileID: 1005262916}
@@ -933,8 +931,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4c134c508809eee45981c7899360ff38, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  acceleration: 10
-  deceleration: 30
+  _Acceleration: 10
+  _Deceleration: 30
+  _MaxRunSpeed: 5
+  _MaxJump: {x: 5, y: 7}
+  _MaxAngle: 10
 --- !u!1 &1721776592
 GameObject:
   m_ObjectHideFlags: 0

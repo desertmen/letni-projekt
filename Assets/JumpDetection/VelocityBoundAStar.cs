@@ -3,11 +3,9 @@ using UnityEngine;
 public class VelocityBoundAStar : Astar<JumpNode>
 {
     private Vector2 maxVelocity;
-    private float boxWidth;
     public VelocityBoundAStar(JumpNode start, JumpNode goal, Vector2 maxVelocity) : base(start, goal)
     {
         this.maxVelocity = new Vector2(Mathf.Abs(maxVelocity.x), Mathf.Abs(maxVelocity.y));
-        this.boxWidth = boxWidth;
     }
 
     public override bool isNeighbourValid(JumpNode neighbour, JumpNode current)

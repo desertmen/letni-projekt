@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using TMPro;
 using UnityEngine;
 
 public class Edge : Tuple<int, int>
@@ -93,11 +94,9 @@ public class Polygon
         return getEdgeBoxIsOn(boxCenter, boxSize) != null;
     }
 
+    // TODO - make better lul
     public WalkableChunk getWalkableChunkTouching(Vector2 center, Vector2 boxSize)
     {
-        if (walkableChunks.Count == 1)
-            return walkableChunks[0];
-
         Vector2 extents = boxSize / 2f;
         float minDist = float.MaxValue;
         WalkableChunk closestChunk = null;
@@ -131,10 +130,6 @@ public class Polygon
                     }
                 }
             }
-        }
-        if(closestChunk == null)
-        {
-            Debug.LogError($"CLOSEST CHUNK NOT FOUND center: {center} + size: {boxSize}");
         }
         return closestChunk;
     }
