@@ -27,19 +27,19 @@ public class LevelManager : MonoBehaviour
     [SerializeField] private List<JumpGenerator.JumpGeneratorInput> _JumpGenerators;
 
     // static for gizmo purposes
-    private static JumpMap jumpMap = null;
-    private static List<Polygon> polygons = null;
-
-    // is static so its not 0 in onDrawGizmos
-    private static float gravity = -10; //Physics2D.gravity.y;
+    private JumpMap jumpMap = null;
+    private List<Polygon> polygons = null;
+    private float gravity;
 
     private void Awake()
     {
+        gravity = Physics2D.gravity.y;
         generateJumpMap();
     }
     
     private void OnDrawGizmos()
     {
+        gravity = Physics2D.gravity.y;
         if (jumpMap == null || polygons == null)
         {
             generateJumpMap();
@@ -51,7 +51,7 @@ public class LevelManager : MonoBehaviour
         drawPathBetweenHandles(jumpMap);
     }
 
-    public List<JumpNode> getPaths(Vector2 start, Vector2 goal, Vector2 maxJump)
+    public List<JumpNode> getPath(Vector2 start, Vector2 goal, Vector2 maxJump, float boxWidth)
     {
         JumpNode startNode = jumpMap.getClosestJumpNodeUnderBox(start, _BoundingBoxSize.x);
         JumpNode goalNode = jumpMap.getClosestJumpNodeUnderBox(goal, _BoundingBoxSize.x);
@@ -291,7 +291,7 @@ public class LevelManager : MonoBehaviour
         Gizmos.DrawLine(pos, pos + new Vector3(Mathf.Cos(-_MaxAngle * Mathf.Deg2Rad), Mathf.Sin(-_MaxAngle * Mathf.Deg2Rad), 0));
     }
 
-    private void drawInterval(Tuple<JumpHit, JumpHit> interval, Vector2 jumpStart)
+    public void drawInterval(Tuple<JumpHit, JumpHit> interval, Vector2 jumpStart)
     {
         Gizmos.color = Color.cyan;
         (JumpHit hit1, JumpHit hit2) = interval;

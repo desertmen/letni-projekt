@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -38,6 +37,8 @@ public class Polygon
         edges = new List<Edge> { new Edge(0, 1, this), new Edge(1, 2, this), new Edge(2, 3, this), new Edge(3, 0, this) };
 
         position = boxCollider.transform.position;
+
+        boxCollider.transform.GetComponent<PolygonReference>().setPolygon(this);
     }
 
     public Polygon(PolygonCollider2D collider, int path = 0)
@@ -61,13 +62,81 @@ public class Polygon
             points[i] = points[i] * collider.transform.lossyScale + (Vector2)collider.transform.position;
             edges.Add(new Edge((i + 1) % points.Count, i, this));
         }
+
+        collider.transform.GetComponent<PolygonReference>().setPolygon(this);
+    }
+
+    // returns null if box is not standing on polyogn
+    public Edge getEdgeBoxIsOn(Vector2 boxCenter, Vector2 boxSize)
+    {
+        float bottomCheckOffset = 0.05f;
+
+        Vector2 BLcorner = boxCenter - boxSize / 2f;
+        Vector2 BRcorner = boxCenter + new Vector2(boxSize.x / 2f, -boxSize.y / 2f);
+        Vector2 offsetBLcorner = BLcorner + (Vector2.down + Vector2.left) * bottomCheckOffset;
+        Vector2 offsetBRcorner = BRcorner + (Vector2.down + Vector2.right) * bottomCheckOffset;
+        foreach(Edge edge in edges)
+        {
+            Vector2[] edgePoints = getEdgePoints(edge);
+            if (MyUtils.Math.linesCollide(offsetBLcorner, BRcorner, edgePoints[0], edgePoints[1]) ||
+                MyUtils.Math.linesCollide(BLcorner, offsetBRcorner, edgePoints[0], edgePoints[1]) ||
+                MyUtils.Math.linesCollide(offsetBLcorner, offsetBRcorner, edgePoints[0], edgePoints[1]))
+            {
+                return edge;
+            }
+        }
+        return null;
+    }
+
+    public bool isBoxOnPolygon(Vector2 boxCenter, Vector2 boxSize)
+    {
+        return getEdgeBoxIsOn(boxCenter, boxSize) != null;
     }
 
     public WalkableChunk getWalkableChunkTouching(Vector2 center, Vector2 boxSize)
     {
         if (walkableChunks.Count == 1)
             return walkableChunks[0];
-        //TODO - fing walkable chunk touched or closest do bbox
+
+        Vector2 extents = boxSize / 2f;
+        float minDist = float.MaxValue;
+        WalkableChunk closestChunk = null;
+        foreach(WalkableChunk walkableChunk in walkableChunks)
+        {
+            (Vector2 left, Vector2 right) = MyUtils.Math.getMinMax<Vector2>(walkableChunk.positions[0], walkableChunk.positions[walkableChunk.positions.Count - 1], (pos) => pos.x);
+            bool isChunkUnderBox = !(right.x < center.x - extents.x || left.x > center.x + extents.x);
+            if(isChunkUnderBox)
+            {
+                for (int i = 0; i < walkableChunk.positions.Count - 1; i++)
+                {
+                    (left, right) = MyUtils.Math.getMinMax<Vector2>(walkableChunk.positions[i], walkableChunk.positions[i + 1], (pos) => pos.x);
+                    bool isEdgeUnderBox = !(right.x < center.x - extents.x || left.x > center.x + extents.x) && (right.y <= center.y - extents.y || left.y <= center.y - extents.y);
+                    if (isEdgeUnderBox)
+                    {
+                        Vector2 leftCorner = center - extents;
+                        Vector2 rightCorner = center + new Vector2(extents.x, -extents.y);
+                        Vector2 leftCornerProj = MyUtils.Math.projectPointOnLine(left, right, leftCorner);
+                        Vector2 rightCornerProj = MyUtils.Math.projectPointOnLine(left, right, rightCorner);
+
+                        leftCornerProj -= leftCorner;
+                        rightCornerProj -= rightCorner;
+
+                        float min = Mathf.Min(Vector2.Dot(leftCornerProj, leftCornerProj), Vector2.Dot(rightCornerProj, rightCornerProj));
+                        if(minDist > min)
+                        {
+                            minDist = min;
+                            closestChunk = walkableChunk;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if(closestChunk == null)
+        {
+            Debug.LogError($"CLOSEST CHUNK NOT FOUND center: {center} + size: {boxSize}");
+        }
+        return closestChunk;
     }
 
     public Vector2[] getEdgePoints(Edge edge)

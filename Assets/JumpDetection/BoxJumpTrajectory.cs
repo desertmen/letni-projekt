@@ -193,7 +193,6 @@ public class BoxJumpTrajectory
         return corners;   
     }
 
-    //TODO - fix - between peaks is line
     public float getMinPointGlobal(float x)
     {
         float min = float.MaxValue;
