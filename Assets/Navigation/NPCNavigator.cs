@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 
 [RequireComponent(typeof(NPCMovent))]
@@ -7,19 +8,23 @@ public class NPCNavigator : MonoBehaviour
 {
     [SerializeField] private Stategy _Strategy = Stategy.TIGHT_JUMP;
     [SerializeField] private float _MaxDistFromEdge;
+    [SerializeField] private bool _ShowGizmos;
     
     [SerializeField] private GameObject target;
     [SerializeField] private TargetTest targetTest;
 
-    private NPCMovent npcMovement;
-    private LevelManager levelManager;
     private WalkableChunk currentChunk;
+    private LevelManager levelManager;
+    private NPCMovent npcMovement;
     private List<JumpNode> path;
-    private int targetNodeIdx;
-    private Vector2 size;
+    private Vector2 lastFirstNodePos = Vector2.positiveInfinity;
     private Vector2 maxJump;
+    private Vector2 size;
+    private float minFirstNodeDist = 1;
     private float maxRunningSpeed;
-    
+    private int failedJumps = 0;
+    private int targetNodeIdx;
+
     [Serializable] public enum Stategy
     {
         ANY_JUMP, TIGHT_JUMP
@@ -29,7 +34,7 @@ public class NPCNavigator : MonoBehaviour
     void Start()
     {
         levelManager = GameObject.FindFirstObjectByType<LevelManager>();
-        size = GetComponent<BoxCollider2D>().bounds.size;
+        size = GetComponent<SpriteRenderer>().bounds.size;
         npcMovement = GetComponent<NPCMovent>();
         npcMovement.setActionOnLanding(onLanding);
         maxJump = npcMovement.getMaxJump();
@@ -46,7 +51,7 @@ public class NPCNavigator : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        if(path != null)
+        if(path != null && _ShowGizmos)
         {
             Gizmos.color = Color.red;
             Gizmos.DrawSphere(path[targetNodeIdx].position, 0.2f);
@@ -61,38 +66,38 @@ public class NPCNavigator : MonoBehaviour
         }
     }
 
-    private List<JumpNode> lastPath = null;
-    private float jumpMultiplier = 1;
     private void followPath()
     {
-        JumpNode currNode = path[targetNodeIdx];
-        JumpNode nextNode = targetNodeIdx < path.Count - 1 ? path[targetNodeIdx + 1] : null;
-
-        if (reachedLastNode())
-        {
-            targetTest.changePosition();
-            updatePath();
-            return;
-        }
-
-        // missed jump -> update path
-        if(isNotOnPath(currNode))
-        {
-            updatePath();
-            if (isPathRepeating())
-                jumpMultiplier += 0.2f;
-            return;
-        }
-        jumpMultiplier = isPathRepeating() ? jumpMultiplier : 1;
-
-        tryToShortenPath(ref currNode, ref nextNode);
-
         if (!npcMovement.isGrounded())
         {
             return;
         }
-        else if (shouldJump(currNode, nextNode))
+        
+        if (reachedLastNode())
         {
+            onTargetReached();
+            return;
+        }
+
+        JumpNode currNode = path[targetNodeIdx];
+        JumpNode nextNode = targetNodeIdx < path.Count - 1 ? path[targetNodeIdx + 1] : null;
+
+        // missed jump -> update path
+        if(isNotOnPath(currNode))
+        {
+            failedJumps++;
+            updatePath();
+            // reset failedJumps if path changes significantly
+            if (Vector2.Distance(lastFirstNodePos, path[0].position) > minFirstNodeDist)
+                failedJumps = 0;
+            return;
+        }
+
+        tryToShortenPath(ref currNode, ref nextNode);
+        
+        if (shouldJump(currNode, nextNode))
+        {
+            float jumpMultiplier = 1 + failedJumps * 0.1f;
             Vector2 jumpVeloctiy = getJumpVelocity(currNode, nextNode);
             npcMovement.jump(jumpVeloctiy * jumpMultiplier);
             targetNodeIdx++;
@@ -113,7 +118,7 @@ public class NPCNavigator : MonoBehaviour
 
     private bool reachedLastNode()
     {
-        return targetNodeIdx == path.Count - 1 && isPointsUnderBBox(path[path.Count - 1].position);
+        return path != null && targetNodeIdx == path.Count - 1 && isPointsUnderBBox(path[path.Count - 1].position);
     }
 
     private bool isNotOnPath(JumpNode currNode)
@@ -121,22 +126,6 @@ public class NPCNavigator : MonoBehaviour
         return npcMovement.isGrounded() && currentChunk != currNode.chunk;
     }
 
-    private bool isPathRepeating()
-    {
-        bool samePath = lastPath != null && lastPath.Count == path.Count;
-        if (samePath)
-        {
-            for (int i = 0; i < lastPath.Count; i++)
-            {
-                if (path[i] != lastPath[i])
-                {
-                    samePath = false;
-                    break;
-                }
-            }
-        }
-        return samePath;
-    }
 
     private int getDirToTarget(JumpNode currNode, JumpNode nextNode)
     {
@@ -180,13 +169,13 @@ public class NPCNavigator : MonoBehaviour
         {
             (JumpHit leftHit, JumpHit rightHit) = MyUtils.Math.getMinMax<JumpHit>(nextNode.info.hitInterval.Item1, nextNode.info.hitInterval.Item2, (hit) => hit.position.x);
             float intervalWidth = rightHit.position.x - leftHit.position.x;
-            if (intervalWidth > size.x)
+            if (intervalWidth > size.x * 1.5f)
             {
                 int dir = (int)Mathf.Sign(nextNode.position.x - currNode.position.x);
-                float t = (size.x) / intervalWidth;
+                float t = size.x * 1.5f / intervalWidth;
                 t = -dir * t + ((dir + 1) / 2f);
                 t = 1 - t;
-                Debug.Log($"jumpstart lerp, l: {leftHit.jumpVelocity}, r:{rightHit.jumpVelocity}, t: {t}");
+                Debug.Log($"jumpstart lerp, l: {leftHit.jumpVelocity}, r:{rightHit.jumpVelocity}, t: {t} = {size.x}/{intervalWidth}");
                 return Vector2.Lerp(leftHit.jumpVelocity, rightHit.jumpVelocity, t);
             }
             else
@@ -198,18 +187,10 @@ public class NPCNavigator : MonoBehaviour
         {
             (JumpHit leftHit, JumpHit rightHit) = MyUtils.Math.getMinMax<JumpHit>(currNode.info.hitInterval.Item1, currNode.info.hitInterval.Item2, (hit) => hit.position.x);
             float intervalWidth = rightHit.position.x - leftHit.position.x;
-            if (intervalWidth > size.x)
-            {
-                int dir = (int)Mathf.Sign(nextNode.position.x - currNode.position.x);
-                float t = (size.x) / intervalWidth;
-                t = -dir * t + ((dir + 1) / 2f);
-                Debug.Log($"interval lerp, l: {-leftHit.impactVelocity}, r:{-rightHit.impactVelocity}, t: {t}");
-                return Vector2.Lerp(-leftHit.impactVelocity, -rightHit.impactVelocity, t);
-            }
-            else
-            {
-                return Vector2.Lerp(-leftHit.impactVelocity, -rightHit.impactVelocity, 0.5f);
-            }
+            int dir = (int)Mathf.Sign(nextNode.position.x - currNode.position.x);                              
+            float t = (transform.position.x - dir * size.x / 2f - leftHit.position.x) / intervalWidth;
+            Debug.Log($"interval lerp, l: {-leftHit.impactVelocity}, r:{-rightHit.impactVelocity}, t: {t}");
+            return Vector2.Lerp(-leftHit.impactVelocity, -rightHit.impactVelocity, t);
         }
     }
 
@@ -273,45 +254,23 @@ public class NPCNavigator : MonoBehaviour
     {
         Tuple<JumpHit, JumpHit> interval = currNode.info.hitInterval;
         (JumpHit leftHit, JumpHit rightHit) = MyUtils.Math.getMinMax<JumpHit>(interval.Item1, interval.Item2, (hit) => hit.position.x);
-        Vector2 BLcorner = (Vector2)transform.position - size / 2f;
-        Vector2 BRcorner = (Vector2)transform.position + new Vector2(size.x / 2f, -size.y / 2f);
-        int dir = (int)Mathf.Sign(nextNode.position.x - currNode.position.x);
-
-        if (dir == MyUtils.Constants.RIGHT)
-        {
-            float dist = rightHit.position.x - BRcorner.x;
-            return dist < _MaxDistFromEdge && leftHit.position.x <= BRcorner.x && BRcorner.x <= rightHit.position.x;
-        }
-        else
-        {
-            float dist = BLcorner.x - leftHit.position.x;
-            return dist < _MaxDistFromEdge && leftHit.position.x <= BLcorner.x && BLcorner.x <= rightHit.position.x;
-        }
+        float pos = transform.position.x;
+        bool isInInterval = MyUtils.Math.isPointInClosedInterval((interval.Item1.position.x, interval.Item2.position.x), transform.position.x);
+        JumpHit targetHit = nextNode.position.x - currNode.position.x > 0 ? rightHit : leftHit;
+        return isInInterval && Mathf.Abs(targetHit.position.x - pos) < size.x / 2f;
     }
 
     private bool shouldJumpWithStategy_ANY_JUMP(JumpNode currNode, JumpNode nextNode)
     {
         Tuple<JumpHit, JumpHit> interval = currNode.info.hitInterval;
-        (JumpHit leftHit, JumpHit rightHit) = MyUtils.Math.getMinMax<JumpHit>(interval.Item1, interval.Item2, (hit) => hit.position.x);
-        Vector2 BLcorner = (Vector2)transform.position - size / 2f;
-        Vector2 BRcorner = (Vector2)transform.position + new Vector2(size.x / 2f, -size.y / 2f);
-        int dir = (int)Mathf.Sign(nextNode.position.x - currNode.position.x);
-
-        if (dir == MyUtils.Constants.RIGHT)
-        {
-            return leftHit.position.x <= BRcorner.x && BRcorner.x <= rightHit.position.x;
-        }
-        else
-        {
-            return leftHit.position.x <= BLcorner.x && BLcorner.x <= rightHit.position.x;
-        }
+        return MyUtils.Math.isPointInClosedInterval((interval.Item1.position.x, interval.Item2.position.x), transform.position.x);
     }
 
     private bool isPointsUnderBBox(Vector2 position)
     {
-        float left = transform.position.x - size.x;
-        float right = transform.position.x + size.x;
-        return position.y <= transform.position.y && left < position.x && position.x < right;
+        float left = transform.position.x - size.x/2f;
+        float right = transform.position.x + size.x/2f;
+        return position.y <= transform.position.y && left <= position.x && position.x <= right;
     }
 
     private bool isNodeJumpStart(JumpNode node)
@@ -326,17 +285,25 @@ public class NPCNavigator : MonoBehaviour
 
     private void updatePath()
     {
-        lastPath = path;
+        if(path != null)
+            lastFirstNodePos = path[0].position;
         path = levelManager.getPath(transform.position, target.transform.position, maxJump, size.x);
         // path should start on same chunk as box
         targetNodeIdx = 0;
         currentChunk = path[0].chunk;
     }
 
+    private void onTargetReached()
+    {
+        failedJumps = 0;
+        targetTest.changePosition();
+        updatePath();
+    }
+
     private void onLanding(Polygon landingPolygon)
     {
-        WalkableChunk newWalkableChunk = landingPolygon.getWalkableChunkTouching(transform.position, size);
-        Debug.Log("WALKABLE CHUNK CANGED" + newWalkableChunk.positions[0] + ", grounded : " + npcMovement.isGrounded());
+        WalkableChunk newWalkableChunk = landingPolygon.getWalkableChunkUnderPoint(transform.position);
+        Debug.Log("WALKABLE CHUNK CANGED, grounded: " + npcMovement.isGrounded());
         currentChunk = newWalkableChunk;
     }
 

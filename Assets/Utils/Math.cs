@@ -79,6 +79,18 @@ namespace MyUtils
             return !(max1 < min2 || min1 > max2);
         }
 
+        public static bool isPointInClosedInterval((float, float) interval, float point)
+        {
+            (float min, float max) = getMinMax<float>(interval.Item1, interval.Item2, (x) => x);
+            return min <= point && point <= max;
+        }
+
+        public static bool isPointInOpenInterval((float, float) interval, float point)
+        {
+            (float min, float max) = getMinMax<float>(interval.Item1, interval.Item2, (x) => x);
+            return min < point && point < max;
+        }
+
         public static float minBySize(float a, float b)
         {
             return Mathf.Abs(a) < Mathf.Abs(b) ? a : b;

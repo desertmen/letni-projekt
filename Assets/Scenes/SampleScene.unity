@@ -135,7 +135,7 @@ GameObject:
   - component: {fileID: 171950567}
   - component: {fileID: 171950566}
   - component: {fileID: 171950568}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Platform4
   m_TagString: Platform
   m_Icon: {fileID: 0}
@@ -278,7 +278,7 @@ GameObject:
   - component: {fileID: 224030509}
   - component: {fileID: 224030508}
   - component: {fileID: 224030510}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Platform1
   m_TagString: Platform
   m_Icon: {fileID: 0}
@@ -421,7 +421,7 @@ GameObject:
   - component: {fileID: 440076733}
   - component: {fileID: 440076732}
   - component: {fileID: 440076734}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Platform2
   m_TagString: Platform
   m_Icon: {fileID: 0}
@@ -753,62 +753,17 @@ GameObject:
   m_Component:
   - component: {fileID: 1118000841}
   - component: {fileID: 1118000840}
-  - component: {fileID: 1118000839}
   - component: {fileID: 1118000842}
+  - component: {fileID: 1118000845}
   - component: {fileID: 1118000843}
   - component: {fileID: 1118000844}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: NPC test
-  m_TagString: Untagged
+  m_TagString: NPC
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!61 &1118000839
-BoxCollider2D:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1118000838}
-  m_Enabled: 1
-  m_Density: 1
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_ForceSendLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_ForceReceiveLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_ContactCaptureLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_CallbackLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_IsTrigger: 0
-  m_UsedByEffector: 0
-  m_UsedByComposite: 0
-  m_Offset: {x: 0, y: 0}
-  m_SpriteTilingProperty:
-    border: {x: 0, y: 0, z: 0, w: 0}
-    pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 1, y: 1}
-    newSize: {x: 1, y: 1}
-    adaptiveTilingThreshold: 0.5
-    drawMode: 0
-    adaptiveTiling: 0
-  m_AutoTiling: 0
-  serializedVersion: 2
-  m_Size: {x: 1, y: 1}
-  m_EdgeRadius: 0
 --- !u!212 &1118000840
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -917,6 +872,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _Strategy: 1
   _MaxDistFromEdge: 0.2
+  _ShowGizmos: 0
   target: {fileID: 1005262916}
   targetTest: {fileID: 1005262919}
 --- !u!114 &1118000844
@@ -935,7 +891,42 @@ MonoBehaviour:
   _Deceleration: 30
   _MaxRunSpeed: 5
   _MaxJump: {x: 5, y: 7}
-  _MaxAngle: 10
+  _MaxAngle: 40
+--- !u!58 &1118000845
+CircleCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1118000838}
+  m_Enabled: 1
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ForceSendLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ForceReceiveLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ContactCaptureLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_CallbackLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_IsTrigger: 0
+  m_UsedByEffector: 0
+  m_UsedByComposite: 0
+  m_Offset: {x: 0, y: -0.35}
+  serializedVersion: 2
+  m_Radius: 0.15
 --- !u!1 &1721776592
 GameObject:
   m_ObjectHideFlags: 0
@@ -951,7 +942,7 @@ GameObject:
   - component: {fileID: 1721776596}
   - component: {fileID: 1721776598}
   - component: {fileID: 1721776599}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: PolyPlatform1
   m_TagString: Platform
   m_Icon: {fileID: 0}
@@ -1160,7 +1151,7 @@ GameObject:
   - component: {fileID: 1919726407}
   m_Layer: 0
   m_Name: Level
-  m_TagString: Untagged
+  m_TagString: Platform
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -1208,7 +1199,7 @@ MonoBehaviour:
   _MaxHandleJump: 7
   startHandle: {x: -12.071967, y: -0.5600027, z: 0}
   goalHandle: {x: 5.886486, y: 2.5042443, z: 0}
-  _MaxAngle: 10
+  _MaxAngle: 40
   _BoundingBoxSize: {x: 0.5, y: 0.5}
   _JumpGenerators:
   - mode: 0
@@ -1232,7 +1223,7 @@ GameObject:
   - component: {fileID: 1925892280}
   - component: {fileID: 1925892279}
   - component: {fileID: 1925892281}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Platform3
   m_TagString: Platform
   m_Icon: {fileID: 0}

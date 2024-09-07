@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class Edge : Tuple<int, int>
@@ -39,7 +40,15 @@ public class Polygon
 
         position = boxCollider.transform.position;
 
-        boxCollider.transform.GetComponent<PolygonReference>().setPolygon(this);
+        if(boxCollider.transform.TryGetComponent<PolygonReference>(out PolygonReference polygonReference))
+        {
+            polygonReference.setPolygon(this); ;
+        }
+        else
+        {
+            polygonReference = boxCollider.transform.AddComponent<PolygonReference>();
+            polygonReference.setPolygon(this);
+        }
     }
 
     public Polygon(PolygonCollider2D collider, int path = 0)
@@ -64,7 +73,15 @@ public class Polygon
             edges.Add(new Edge((i + 1) % points.Count, i, this));
         }
 
-        collider.transform.GetComponent<PolygonReference>().setPolygon(this);
+        if (collider.transform.TryGetComponent<PolygonReference>(out PolygonReference polygonReference))
+        {
+            polygonReference.setPolygon(this); ;
+        }
+        else
+        {
+            polygonReference = collider.transform.AddComponent<PolygonReference>();
+            polygonReference.setPolygon(this);
+        }
     }
 
     // returns null if box is not standing on polyogn
@@ -94,39 +111,30 @@ public class Polygon
         return getEdgeBoxIsOn(boxCenter, boxSize) != null;
     }
 
-    // TODO - make better lul
-    public WalkableChunk getWalkableChunkTouching(Vector2 center, Vector2 boxSize)
+    // TODO - make better lul - follow tutorials idea and move small circle collider
+    public WalkableChunk getWalkableChunkUnderPoint(Vector2 position)
     {
-        Vector2 extents = boxSize / 2f;
         float minDist = float.MaxValue;
         WalkableChunk closestChunk = null;
         foreach(WalkableChunk walkableChunk in walkableChunks)
         {
-            (Vector2 left, Vector2 right) = MyUtils.Math.getMinMax<Vector2>(walkableChunk.positions[0], walkableChunk.positions[walkableChunk.positions.Count - 1], (pos) => pos.x);
-            bool isChunkUnderBox = !(right.x < center.x - extents.x || left.x > center.x + extents.x);
-            if(isChunkUnderBox)
+            bool isChunkUnderPoint = MyUtils.Math.isPointInClosedInterval((walkableChunk.positions.First().x, walkableChunk.positions.Last().x), position.x);
+            if (!isChunkUnderPoint)
+                continue;
+
+            for (int i = 0; i < walkableChunk.positions.Count - 1; i++)
             {
-                for (int i = 0; i < walkableChunk.positions.Count - 1; i++)
+                Vector2 pointProjection = MyUtils.Math.projectPointOnLine(walkableChunk.positions[i], walkableChunk.positions[i + 1], position);
+                if (MyUtils.Math.isPointInClosedInterval((walkableChunk.positions[i].x, walkableChunk.positions[i + 1].x), position.x) && 
+                    pointProjection.y <= position.y)
                 {
-                    (left, right) = MyUtils.Math.getMinMax<Vector2>(walkableChunk.positions[i], walkableChunk.positions[i + 1], (pos) => pos.x);
-                    bool isEdgeUnderBox = !(right.x < center.x - extents.x || left.x > center.x + extents.x) && (right.y <= center.y - extents.y || left.y <= center.y - extents.y);
-                    if (isEdgeUnderBox)
+                    Vector2 diff = pointProjection - position;
+                    float min = Vector2.Dot(diff, diff);
+                    if(minDist > min)
                     {
-                        Vector2 leftCorner = center - extents;
-                        Vector2 rightCorner = center + new Vector2(extents.x, -extents.y);
-                        Vector2 leftCornerProj = MyUtils.Math.projectPointOnLine(left, right, leftCorner);
-                        Vector2 rightCornerProj = MyUtils.Math.projectPointOnLine(left, right, rightCorner);
-
-                        leftCornerProj -= leftCorner;
-                        rightCornerProj -= rightCorner;
-
-                        float min = Mathf.Min(Vector2.Dot(leftCornerProj, leftCornerProj), Vector2.Dot(rightCornerProj, rightCornerProj));
-                        if(minDist > min)
-                        {
-                            minDist = min;
-                            closestChunk = walkableChunk;
-                            break;
-                        }
+                        minDist = min;
+                        closestChunk = walkableChunk;
+                        break;
                     }
                 }
             }

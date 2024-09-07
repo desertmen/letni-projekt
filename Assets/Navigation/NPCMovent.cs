@@ -6,7 +6,7 @@ using UnityEditor.U2D.Aseprite;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody2D))]
-[RequireComponent (typeof(BoxCollider2D))]
+[RequireComponent (typeof(CircleCollider2D))]
 public class NPCMovent : Movement
 {
     [SerializeField] private float _Acceleration;
@@ -17,38 +17,41 @@ public class NPCMovent : Movement
     [SerializeField][Range(0, 89)] private float _MaxAngle;
 
     private Rigidbody2D body;
-    private BoxCollider2D boxCollider;
+    private CircleCollider2D collider;
     private State state;
-    private Vector2 size;
     private Action<Polygon> onLanding = null;
     private Vector2 slope = Vector2.right;
-    private Polygon currPolygon = null;
-
-    // TODO- landing timer for undetected landing check
-    private float falseJumpingTime = 0;
-    private float maxFalseJumpingTime = 0.2f;
+    private Vector2 lastVelocity = Vector2.zero;
+    private Polygon currPolygon;
 
     // Start is called before the first frame update
     void Start()
     {
         state = State.JUMPING;
         body = GetComponent<Rigidbody2D>();
-        boxCollider = GetComponent<BoxCollider2D>();   
-        size = boxCollider.bounds.size;
+        collider = GetComponent<CircleCollider2D>();   
     }
 
     // Update is called once per frame
     void Update()
     {
-        tryToEndJump();
+        if(state == State.JUMPING && body.velocity.y == 0 && lastVelocity.y == 0)
+        {
+            tryChangeState(State.IDLE);
+        }
+        lastVelocity = body.velocity;
 
         move();
+        //debugChangeCollor();
+    }
 
+    private void debugChangeCollor()
+    {
         switch (state)
         {
             case State.IDLE:
                 GetComponent<SpriteRenderer>().color = Color.white; break;
-            case State.STOPPED:
+            case State.STOPPING:
                 GetComponent<SpriteRenderer>().color = Color.red; break;
             case State.MOVING_LEFT:
                 GetComponent<SpriteRenderer>().color = Color.blue; break;
@@ -59,75 +62,111 @@ public class NPCMovent : Movement
         }
     }
 
-    private void tryToEndJump()
+    public Vector2 getSlopeNormal()
     {
-        if (body.velocity.y == 0 && state == State.JUMPING)
+        if(currPolygon == null)
         {
-            falseJumpingTime += Time.deltaTime;
+            return Vector2.up;
+        }
+        Vector2 pos = collider.bounds.center;
+        Vector2 extents = collider.bounds.extents;
+        float minDist = float.MaxValue;
+        Vector2 closest = Vector2.positiveInfinity;
+        for (int i = 0; i < currPolygon.points.Count; i++)
+        {
+            Vector2 edge1 = currPolygon.points[i];
+            Vector2 edge2 = currPolygon.points[(i + 1) % currPolygon.points.Count];
+
+            if(MyUtils.Math.intervalsOverlap((edge1.x, edge2.x), (pos.x - extents.x, pos.x + extents.x)))
+            {
+                Vector2 projection = MyUtils.Math.projectPointOnLine(edge1, edge2, pos);
+                float dist = Vector2.Distance(projection, pos);
+                if (dist >= extents.x && projection.y <= pos.y && dist < minDist)
+                {
+                    minDist = dist;
+                    closest = projection; ;
+                }
+            }
+        }
+        if (closest.x == float.PositiveInfinity)
+            return Vector2.up;
+
+        return (pos - closest).normalized;
+    }
+
+    public Vector2 getSlopeDirRight()
+    {
+        Vector2 normal = getSlopeNormal();
+        return new Vector2(normal.y, -normal.x);
+    }
+
+    public Vector2 getSlopeDirLeft()
+    {
+        Vector2 normal = getSlopeNormal();
+        return new Vector2(-normal.y, normal.x);
+    }
+
+    public Vector2 getSlopeDirDown()
+    {
+        Vector2 normal = getSlopeNormal();
+        if(normal.x > 0)
+        {
+            return new Vector2(normal.y, -normal.x);
         }
         else
         {
-            falseJumpingTime = 0;
+            return new Vector2(-normal.y, normal.x);
         }
-        if (falseJumpingTime > maxFalseJumpingTime && state == State.JUMPING)
-        {
-            tryChangeState(State.IDLE);
-        }
-    }
-
-    private void OnDrawGizmos()
-    {
-        Gizmos.color = Color.white;
-        Gizmos.DrawLine(transform.position, transform.position + 2*Vector3.right);
-        Gizmos.color = Color.blue;
-        Gizmos.DrawLine(transform.position, (Vector2)transform.position + 2*slope);
-        Gizmos.color = Color.red;
-        if(body != null)
-            Gizmos.DrawLine(transform.position, (Vector2)transform.position + 2 * body.velocity.normalized);
     }
 
     private void move()
     { 
         // TODO - make npc walk on slopes
         float time = Time.deltaTime;
-        float xSpeed, speedChange;
-
+        float speed, speedChange;
         switch(state)
         {
-            case State.STOPPED:
+            case State.STOPPING:
                 speedChange = _Deceleration * time;
-                xSpeed = speedChange > Mathf.Abs(body.velocity.x) ? 0 : body.velocity.x - speedChange * Mathf.Sign(body.velocity.x);
-                body.velocity = new Vector2(xSpeed, body.velocity.y);
+                speed = speedChange > body.velocity.magnitude ? 0 : body.velocity.magnitude - speedChange * Mathf.Sign(body.velocity.x);
+                body.velocity = speed * body.velocity.normalized;
                 break;
             case State.MOVING_RIGHT:
                 speedChange = body.velocity.x < 0 ? _Deceleration * time : _Acceleration * time;
-                xSpeed = Mathf.Min(_MaxRunSpeed, body.velocity.x + speedChange);
-                Vector2 dirR = slope.y >= 0 ? slope : Vector2.right;
-                body.velocity = xSpeed * dirR;
+                Vector2 velocityR = body.velocity + getSlopeDirRight() * speedChange;
+                velocityR = velocityR.magnitude > _MaxRunSpeed ? velocityR.normalized * _MaxRunSpeed : velocityR;
+                body.velocity = velocityR;
                 break;
             case State.MOVING_LEFT:
                 speedChange = body.velocity.x > 0 ? _Deceleration * time : _Acceleration * time;
-                xSpeed = Mathf.Max(-_MaxRunSpeed, body.velocity.x - speedChange);
-                Vector2 dirL = slope.y <= 0 ? slope : Vector2.right;
-                body.velocity = xSpeed * dirL;
+                Vector2 velocityL = body.velocity + getSlopeDirLeft() * speedChange;
+                velocityL = velocityL.magnitude > _MaxRunSpeed ? velocityL.normalized * _MaxRunSpeed : velocityL;
+                body.velocity = velocityL;
                 break;
-            case State.JUMPING: 
-                break;
-            case State.IDLE:
-                break;
+            case State.SLIDING:
+                speedChange = _Acceleration * time;
+                Vector2 velocityD = body.velocity + getSlopeDirDown() * speedChange;
+                velocityD = velocityD.magnitude > _MaxRunSpeed ? velocityD.normalized * _MaxRunSpeed : velocityD;
+                body.velocity = velocityD;
+                break;  
         }
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        RaycastHit2D[] results = new RaycastHit2D[1];
-        Debug.Log("HIT COUNT: " + boxCollider.Cast(Vector2.down, results, 0.1f));
-        
-        if (collision.gameObject.tag.Equals(MyUtils.Constants.Tags.platform) && 
-            collision.transform.TryGetComponent<PolygonReference>(out PolygonReference polygonReference) &&
-            boxCollider.Cast(Vector2.down, results, 0.2f) > 0) // polygon is touching bottom of box
+        if (!(collision.gameObject.tag.Equals(MyUtils.Constants.Tags.platform) &&
+              collision.transform.TryGetComponent<PolygonReference>(out PolygonReference polygonReference)))
+            return;
+
+        currPolygon = polygonReference.polygon;
+        Vector2 pos = collider.bounds.center;
+        int mask = 1 << MyUtils.Constants.Layers.platform;
+        RaycastHit2D hit = Physics2D.Raycast(pos, Vector2.down, collider.bounds.size.y * 2, mask);
+
+        // TODO - add maxWalkableAngle
+        //            raycast hits correct polygon
+        if (hit && hit.transform == collision.transform)
         {
-            currPolygon = polygonReference.polygon;
             tryChangeState(State.IDLE);
             if(onLanding != null)
             {
@@ -140,8 +179,8 @@ public class NPCMovent : Movement
     {
         if (collision.gameObject.tag.Equals(MyUtils.Constants.Tags.platform))
         {
-            tryChangeState(State.JUMPING);
             currPolygon = null;
+            tryChangeState(State.JUMPING);
         }
     }
 
@@ -166,7 +205,7 @@ public class NPCMovent : Movement
 
     public override void stopMoving()
     {
-        tryChangeState(State.STOPPED);
+        tryChangeState(State.STOPPING);
     }
 
     private bool tryChangeState(State nextState)

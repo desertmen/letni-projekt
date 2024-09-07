@@ -8,7 +8,8 @@ public abstract class Movement : MonoBehaviour
         MOVING_RIGHT,
         MOVING_LEFT,
         JUMPING,
-        STOPPED,
+        STOPPING,
+        SLIDING,
         IDLE
     }
 
