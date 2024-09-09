@@ -331,13 +331,13 @@ public class NPCNavigator : MonoBehaviour
                 if(jumpDir != dirToCurr)
                 {
                     jumpedFromNode.removeJumpPower(jumpPowerAdjustment);
-                    Debug.LogError("Jump power decreased");
+                    Debug.Log("Jump power decreased");
                 }
                 // underJump
                 else
                 {
                     jumpedFromNode.addJumpPower(jumpPowerAdjustment);
-                    Debug.LogError("Jump power incresed");
+                    Debug.Log("Jump power incresed");
                 }
             }
         }
