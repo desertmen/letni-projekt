@@ -118,5 +118,14 @@ namespace MyUtils
         {
             return getValue(a) < getValue(b) ? (a , b) : (b, a);
         }
+
+        public static bool absLess(Vector2 a, Vector2 b)
+        {
+            return Mathf.Abs(a.x) < Mathf.Abs(b.x) && Mathf.Abs(a.y) < Mathf.Abs(b.y);
+        }
+        public static bool absLessOrEqual(Vector2 a, Vector2 b)
+        {
+            return Mathf.Abs(a.x) <= Mathf.Abs(b.x) && Mathf.Abs(a.y) <= Mathf.Abs(b.y);
+        }
     }
 }

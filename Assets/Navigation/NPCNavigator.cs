@@ -20,10 +20,11 @@ public class NPCNavigator : MonoBehaviour
     private Vector2 lastFirstNodePos = Vector2.positiveInfinity;
     private Vector2 maxJump;
     private Vector2 size;
-    private float minFirstNodeDist = 1;
-    private float maxRunningSpeed;
-    private int failedJumps = 0;
     private int targetNodeIdx;
+    private float maxRunningSpeed;
+    
+    private const float minFirstNodeDist = 1;
+    private const float jumpPowerAdjustment = 0.05f;
 
     [Serializable] public enum Stategy
     {
@@ -66,6 +67,7 @@ public class NPCNavigator : MonoBehaviour
         }
     }
 
+    private bool jumped = false;
     private void followPath()
     {
         if (!npcMovement.isGrounded())
@@ -79,17 +81,19 @@ public class NPCNavigator : MonoBehaviour
             return;
         }
 
+        if(targetNodeIdx >= path.Count)
+        {
+            updatePath();
+            return;
+        }
+
         JumpNode currNode = path[targetNodeIdx];
         JumpNode nextNode = targetNodeIdx < path.Count - 1 ? path[targetNodeIdx + 1] : null;
 
         // missed jump -> update path
         if(isNotOnPath(currNode))
         {
-            failedJumps++;
             updatePath();
-            // reset failedJumps if path changes significantly
-            if (Vector2.Distance(lastFirstNodePos, path[0].position) > minFirstNodeDist)
-                failedJumps = 0;
             return;
         }
 
@@ -97,13 +101,14 @@ public class NPCNavigator : MonoBehaviour
         
         if (shouldJump(currNode, nextNode))
         {
-            float jumpMultiplier = 1 + failedJumps * 0.1f;
+            jumped = true;
             Vector2 jumpVeloctiy = getJumpVelocity(currNode, nextNode);
-            npcMovement.jump(jumpVeloctiy * jumpMultiplier);
+            npcMovement.jump(jumpVeloctiy * currNode.getJumpPower());
             targetNodeIdx++;
         }
         else
         {
+            jumped = false;
             int dir = getDirToTarget(currNode, nextNode);
             if (dir == MyUtils.Constants.RIGHT)
             {
@@ -118,7 +123,7 @@ public class NPCNavigator : MonoBehaviour
 
     private bool reachedLastNode()
     {
-        return path != null && targetNodeIdx == path.Count - 1 && isPointsUnderBBox(path[path.Count - 1].position);
+        return path != null && targetNodeIdx == path.Count - 1 && (path[path.Count - 1].chunk == currentChunk || isPointsUnderBBox(path[path.Count - 1].position));
     }
 
     private bool isNotOnPath(JumpNode currNode)
@@ -241,7 +246,7 @@ public class NPCNavigator : MonoBehaviour
             {
                 case Stategy.ANY_JUMP:
                     // is box inside hit interval
-                    return shouldJumpWithStategy_ANY_JUMP(currNode, nextNode);
+                    return shouldJumpWithStategy_ANY_JUMP(currNode);
                 case Stategy.TIGHT_JUMP:
                     // is box close enough to edge of interval
                     return shouldJumpWithStategy_TIGHT_JUMP(currNode, nextNode);
@@ -260,7 +265,7 @@ public class NPCNavigator : MonoBehaviour
         return isInInterval && Mathf.Abs(targetHit.position.x - pos) < size.x / 2f;
     }
 
-    private bool shouldJumpWithStategy_ANY_JUMP(JumpNode currNode, JumpNode nextNode)
+    private bool shouldJumpWithStategy_ANY_JUMP(JumpNode currNode)
     {
         Tuple<JumpHit, JumpHit> interval = currNode.info.hitInterval;
         return MyUtils.Math.isPointInClosedInterval((interval.Item1.position.x, interval.Item2.position.x), transform.position.x);
@@ -287,7 +292,13 @@ public class NPCNavigator : MonoBehaviour
     {
         if(path != null)
             lastFirstNodePos = path[0].position;
-        path = levelManager.getPath(transform.position, target.transform.position, maxJump, size.x);
+        path = levelManager.getPath(transform.position, target.transform.position, maxJump);
+        if(path.Count == 0)
+        {
+            targetTest.changePosition();
+            updatePath();
+            return;
+        }
         // path should start on same chunk as box
         targetNodeIdx = 0;
         currentChunk = path[0].chunk;
@@ -295,7 +306,6 @@ public class NPCNavigator : MonoBehaviour
 
     private void onTargetReached()
     {
-        failedJumps = 0;
         targetTest.changePosition();
         updatePath();
     }
@@ -305,6 +315,32 @@ public class NPCNavigator : MonoBehaviour
         WalkableChunk newWalkableChunk = landingPolygon.getWalkableChunkUnderPoint(transform.position);
         Debug.Log("WALKABLE CHUNK CANGED, grounded: " + npcMovement.isGrounded());
         currentChunk = newWalkableChunk;
+        
+        // todo - check underJump / overJump -> change jumpPower of node
+        // targetNodeIdx - 1, becouse +1 after jump
+        if(path != null && targetNodeIdx > 0)
+        {
+            JumpNode jumpedFromNode = path[targetNodeIdx - 1];
+            JumpNode currNode = path[targetNodeIdx];
+
+            if(currNode.chunk != newWalkableChunk && jumped)
+            {
+                int jumpDir = (int)Mathf.Sign(currNode.position.x - jumpedFromNode.position.x);
+                int dirToCurr = (int)Mathf.Sign(currNode.position.x - transform.position.x);
+                // overJump
+                if(jumpDir != dirToCurr)
+                {
+                    jumpedFromNode.removeJumpPower(jumpPowerAdjustment);
+                    Debug.LogError("Jump power decreased");
+                }
+                // underJump
+                else
+                {
+                    jumpedFromNode.addJumpPower(jumpPowerAdjustment);
+                    Debug.LogError("Jump power incresed");
+                }
+            }
+        }
     }
 
     public void onTargetChunkChange()

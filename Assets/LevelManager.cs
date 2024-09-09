@@ -12,6 +12,7 @@ public class LevelManager : MonoBehaviour
     [SerializeField] public bool _ShowTrajectories;
     [SerializeField] public bool _ShowAllIntervalsOnChunk;
     [SerializeField] private bool _ShowPolygonConnections;
+    [SerializeField] private Vector2 _PolygonConnectionMaxJump;
     [SerializeField] private bool _ShowJumpNodes;
     [SerializeField] public bool _ShowHandlesPath;
     [SerializeField] private float _MaxHandleJump;
@@ -51,7 +52,7 @@ public class LevelManager : MonoBehaviour
         drawPathBetweenHandles(jumpMap);
     }
 
-    public List<JumpNode> getPath(Vector2 start, Vector2 goal, Vector2 maxJump, float boxWidth)
+    public List<JumpNode> getPath(Vector2 start, Vector2 goal, Vector2 maxJump)
     {
         JumpNode startNode = jumpMap.getClosestJumpNodeUnderBox(start, _BoundingBoxSize.x);
         JumpNode goalNode = jumpMap.getClosestJumpNodeUnderBox(goal, _BoundingBoxSize.x);
@@ -66,7 +67,7 @@ public class LevelManager : MonoBehaviour
 
         checkInputs();
 
-        polygons = getChildrenPolygons(_MaxAngle);
+        polygons = getChildrenPolygons();
         List<JumpGenerator> jumpGenerators = new List<JumpGenerator>();
         foreach (JumpGenerator.JumpGeneratorInput input in _JumpGenerators)
         {
@@ -96,6 +97,11 @@ public class LevelManager : MonoBehaviour
 
     private void checkInputs()
     {
+        if(_JumpGenerators == null || _JumpGenerators.Count == 0)
+        {
+            Debug.LogError("Level Manager - no jumps assigned");
+            return;
+        }
         foreach(JumpGenerator.JumpGeneratorInput input in _JumpGenerators)
         {
             for(int i = 0; i< _JumpGenerators.Count; i++)
@@ -135,7 +141,7 @@ public class LevelManager : MonoBehaviour
         }
     }
 
-    private List<Polygon> getChildrenPolygons(float maxAngle)
+    private List<Polygon> getChildrenPolygons()
     {
         List<Polygon> polygons = new List<Polygon>();
         for (int i = 0; i < transform.childCount; i++)
@@ -232,7 +238,6 @@ public class LevelManager : MonoBehaviour
         _SelectedPolygon = Mathf.Clamp(_SelectedPolygon, 0, polygons.Count - 1);
         Polygon selectedPolygon = polygons[_SelectedPolygon];
         _SelectedChunk = Mathf.Clamp(_SelectedPolygon, 0, selectedPolygon.getPrecalculatedWalkableChunks().Count - 1);
-        WalkableChunk selectedChunk = polygons[_SelectedPolygon].getPrecalculatedWalkableChunks()[_SelectedChunk];
 
         foreach (JumpNode node in jumpMap.getJumpNodes())
         {
@@ -272,14 +277,26 @@ public class LevelManager : MonoBehaviour
 
     private void drawPolygonConnections(JumpMap jumpMap)
     {
-        Gizmos.color = Color.red;
         if (_ShowPolygonConnections)
         {
-            foreach (WalkableChunk walkableChunk1 in jumpMap.getAllWalkableChunks())
+            Gizmos.color = Color.red;
+            foreach(WalkableChunk chunk in jumpMap.getWalkableChunks())
             {
-                foreach (WalkableChunk walkableChunk2 in jumpMap.getConnectedChunks(walkableChunk1))
+                foreach(JumpConnectionInfo jump in jumpMap.getOutgoingConnections(chunk))
                 {
-                    Gizmos.DrawLine(walkableChunk1.positions[0], walkableChunk2.positions[0]);
+                    if(MyUtils.Math.absLessOrEqual(jump.hitInterval.Item1.jumpVelocity, _PolygonConnectionMaxJump) ||
+                       MyUtils.Math.absLessOrEqual(jump.hitInterval.Item2.jumpVelocity, _PolygonConnectionMaxJump))
+                    {
+                        MyUtils.GizmosBasic.drawArrow(jump.jumpStart, (jump.hitInterval.Item1.position + jump.hitInterval.Item2.position) /2f, 0.3f);
+                    }
+                }
+                foreach (JumpConnectionInfo jump in jumpMap.getIncomingConnections(chunk))
+                {
+                    if (MyUtils.Math.absLessOrEqual(jump.hitInterval.Item1.impactVelocity, _PolygonConnectionMaxJump) ||
+                        MyUtils.Math.absLessOrEqual(jump.hitInterval.Item2.impactVelocity, _PolygonConnectionMaxJump))
+                    {
+                        MyUtils.GizmosBasic.drawArrow((jump.hitInterval.Item1.position + jump.hitInterval.Item2.position) /2f, jump.jumpStart, 0.3f);
+                    }
                 }
             }
         }

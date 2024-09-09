@@ -1194,6 +1194,7 @@ MonoBehaviour:
   _ShowTrajectories: 0
   _ShowAllIntervalsOnChunk: 0
   _ShowPolygonConnections: 0
+  _PolygonConnectionMaxJump: {x: 5, y: 7}
   _ShowJumpNodes: 0
   _ShowHandlesPath: 0
   _MaxHandleJump: 7
