@@ -1,5 +1,5 @@
+using System;
 using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
 
 public class JumpGenerator
@@ -12,6 +12,15 @@ public class JumpGenerator
         CONST_X_VARIABLE_Y = 1,
         CONST_Y_VARIABLE_X = 2
     }
+
+    [Serializable]
+    public struct JumpGeneratorInput
+    {
+        public Mode mode;
+        public Vector2 direction;
+        public float velocity;
+    }
+
     private Mode currentMode;
 
     private Vector2 jumpVelocityDirection = Vector2.one;

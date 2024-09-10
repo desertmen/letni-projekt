@@ -5,28 +5,20 @@ using UnityEngine;
 
 public class Test : MonoBehaviour
 {
-    [Range(0.0000001f, 1f)]
-    public float _SmoothingFactor = 0.1f;
-    [Range(0.0000001f, 1f)]
-    public float _MinStep = 0.1f;
-
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
+    [SerializeField] Vector2 A1;
+    [SerializeField] Vector2 A2;
+    [SerializeField] Vector2 B1;
+    [SerializeField] Vector2 B2;
 
     private void OnDrawGizmos()
     {
-        Func<float, float> func = x => (float)Math.Sin(x);
-        MyGizmos.FunctionGizmo.draw(0, 7, 1, func);
-
-        Gizmos.DrawWireSphere(new Vector3(7, 0, 0), 0.3f);
+        Gizmos.DrawSphere(A1, 0.1f);
+        Gizmos.DrawSphere(A2, 0.1f);
+        Gizmos.DrawSphere(B1, 0.1f);
+        Gizmos.DrawSphere(B2, 0.1f);
+        Gizmos.color = MyUtils.Math.linesCollide(A1, A2, B1, B2) ? Color.green : Color.red;
+        Gizmos.DrawLine(A1, A2);
+        Gizmos.DrawLine(B1, B2);
+        Gizmos.DrawSphere(MyUtils.Math.getLinesIntersection(A1, A2, B1, B2), 0.1f);
     }
 }

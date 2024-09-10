@@ -15,6 +15,7 @@ public class JumpNode : IAStarNode<JumpNode>
     public Vector2 position { get; private set; }
 
     private JumpNode intervalNeighbour;
+    private float jumpPower = 1;
 
     public JumpNode(Vector2 position, WalkableChunk chunk, JumpConnectionInfo info, JumpMap jumpMap)
     {
@@ -26,6 +27,21 @@ public class JumpNode : IAStarNode<JumpNode>
         g = float.PositiveInfinity;
         h = float.PositiveInfinity;
         parrent = null;
+    }
+
+    public void addJumpPower(float power)
+    {
+        jumpPower += power;
+    }
+
+    public void removeJumpPower(float power)
+    {
+        jumpPower -= power;
+    }
+
+    public float getJumpPower()
+    {
+        return jumpPower;
     }
 
     public void setIntervalNeighbour(JumpNode intervalNeighbour)

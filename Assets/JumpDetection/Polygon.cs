@@ -1,7 +1,8 @@
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using TMPro;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class Edge : Tuple<int, int>
@@ -38,6 +39,16 @@ public class Polygon
         edges = new List<Edge> { new Edge(0, 1, this), new Edge(1, 2, this), new Edge(2, 3, this), new Edge(3, 0, this) };
 
         position = boxCollider.transform.position;
+
+        if(boxCollider.transform.TryGetComponent<PolygonReference>(out PolygonReference polygonReference))
+        {
+            polygonReference.setPolygon(this); ;
+        }
+        else
+        {
+            polygonReference = boxCollider.transform.AddComponent<PolygonReference>();
+            polygonReference.setPolygon(this);
+        }
     }
 
     public Polygon(PolygonCollider2D collider, int path = 0)
@@ -61,6 +72,74 @@ public class Polygon
             points[i] = points[i] * collider.transform.lossyScale + (Vector2)collider.transform.position;
             edges.Add(new Edge((i + 1) % points.Count, i, this));
         }
+
+        if (collider.transform.TryGetComponent<PolygonReference>(out PolygonReference polygonReference))
+        {
+            polygonReference.setPolygon(this); ;
+        }
+        else
+        {
+            polygonReference = collider.transform.AddComponent<PolygonReference>();
+            polygonReference.setPolygon(this);
+        }
+    }
+
+    // returns null if box is not standing on polyogn
+    public Edge getEdgeBoxIsOn(Vector2 boxCenter, Vector2 boxSize)
+    {
+        float bottomCheckOffset = 0.05f;
+
+        Vector2 BLcorner = boxCenter - boxSize / 2f;
+        Vector2 BRcorner = boxCenter + new Vector2(boxSize.x / 2f, -boxSize.y / 2f);
+        Vector2 offsetBLcorner = BLcorner + (Vector2.down + Vector2.left) * bottomCheckOffset;
+        Vector2 offsetBRcorner = BRcorner + (Vector2.down + Vector2.right) * bottomCheckOffset;
+        foreach(Edge edge in edges)
+        {
+            Vector2[] edgePoints = getEdgePoints(edge);
+            if (MyUtils.Math.linesCollide(offsetBLcorner, BRcorner, edgePoints[0], edgePoints[1]) ||
+                MyUtils.Math.linesCollide(BLcorner, offsetBRcorner, edgePoints[0], edgePoints[1]) ||
+                MyUtils.Math.linesCollide(offsetBLcorner, offsetBRcorner, edgePoints[0], edgePoints[1]))
+            {
+                return edge;
+            }
+        }
+        return null;
+    }
+
+    public bool isBoxOnPolygon(Vector2 boxCenter, Vector2 boxSize)
+    {
+        return getEdgeBoxIsOn(boxCenter, boxSize) != null;
+    }
+
+    // TODO - make better lul - follow tutorials idea and move small circle collider
+    public WalkableChunk getWalkableChunkUnderPoint(Vector2 position)
+    {
+        float minDist = float.MaxValue;
+        WalkableChunk closestChunk = null;
+        foreach(WalkableChunk walkableChunk in walkableChunks)
+        {
+            bool isChunkUnderPoint = MyUtils.Math.isPointInClosedInterval((walkableChunk.positions.First().x, walkableChunk.positions.Last().x), position.x);
+            if (!isChunkUnderPoint)
+                continue;
+
+            for (int i = 0; i < walkableChunk.positions.Count - 1; i++)
+            {
+                Vector2 pointProjection = MyUtils.Math.projectPointOnLine(walkableChunk.positions[i], walkableChunk.positions[i + 1], position);
+                if (MyUtils.Math.isPointInClosedInterval((walkableChunk.positions[i].x, walkableChunk.positions[i + 1].x), position.x) && 
+                    pointProjection.y <= position.y)
+                {
+                    Vector2 diff = pointProjection - position;
+                    float min = Vector2.Dot(diff, diff);
+                    if(minDist > min)
+                    {
+                        minDist = min;
+                        closestChunk = walkableChunk;
+                        break;
+                    }
+                }
+            }
+        }
+        return closestChunk;
     }
 
     public Vector2[] getEdgePoints(Edge edge)

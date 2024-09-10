@@ -4,7 +4,6 @@ using UnityEngine;
 
 public class JumpMap
 {
-    // TODO -> create graph of nodes for A* to go through
     private List<WalkableChunk> walkableChunks;
     private Dictionary<WalkableChunk, List<WalkableChunk>> connections = new Dictionary<WalkableChunk, List<WalkableChunk>>();
     private Dictionary<WalkableChunk, List<JumpConnectionInfo>> outgoingIntervals = new Dictionary<WalkableChunk, List<JumpConnectionInfo>>();
@@ -55,6 +54,33 @@ public class JumpMap
         {
             float dist = Vector2.Distance(jumpNode.position, position);
             if (dist < minDist)
+            {
+                minDist = dist;
+                minNode = jumpNode;
+            }
+        }
+        return minNode;
+    }
+
+    public JumpNode getClosestJumpNodeUnderBox(Vector2 position, float boxWidth)
+    {
+        float minDist = float.PositiveInfinity;
+        JumpNode minNode = null;
+
+        foreach (JumpNode jumpNode in jumpNodes)
+        {
+            float dist = Vector2.Distance(jumpNode.position, position);
+            bool isChunkNodeUnder = false;
+            for(int i = 0; i < jumpNode.chunk.positions.Count - 1; i++)
+            {
+                (Vector2 left, Vector2 right) = MyUtils.Math.getMinMax<Vector2>(jumpNode.chunk.positions[i], jumpNode.chunk.positions[i + 1], (pos) => pos.x);
+                if(left.x <= position.x + boxWidth/2 && position.x - boxWidth/2 <= right.x && (position.y >= left.y || position.y >= right.y))
+                {
+                    isChunkNodeUnder = true;
+                    break;
+                }
+            }
+            if (dist < minDist && isChunkNodeUnder)
             {
                 minDist = dist;
                 minNode = jumpNode;
