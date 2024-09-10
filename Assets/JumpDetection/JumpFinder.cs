@@ -76,12 +76,16 @@ public class JumpFinder
 
                 foreach (Tuple<JumpHit, JumpHit> leftInterval in leftIntervals)
                 {
+                    if (Vector2.Distance(leftInterval.Item1.position, leftInterval.Item2.position) < 0.01f)
+                        continue;
                     WalkableChunk hitWalkableChunkPoints = leftInterval.Item1.walkableChunk;
                     jumpMap.addConnection(new JumpConnectionInfo(walkableChunk, hitWalkableChunkPoints, leftCorner, leftInterval));
                 }
 
                 foreach (Tuple<JumpHit, JumpHit> rightInterval in rightIntervals)
                 {
+                    if (Vector2.Distance(rightInterval.Item1.position, rightInterval.Item2.position) < 0.01f)
+                        continue;
                     WalkableChunk hitWalkableChunkPoints = rightInterval.Item1.walkableChunk;
                     jumpMap.addConnection(new JumpConnectionInfo(walkableChunk, hitWalkableChunkPoints, rightCorner, rightInterval));
                 }

@@ -95,6 +95,10 @@ public class LevelManager : MonoBehaviour
 
         JumpNode startNode = jumpMap.getClosestJumpNodeUnderBox(start, boundingBoxSize.x);
         JumpNode goalNode = jumpMap.getClosestJumpNodeUnderBox(goal, boundingBoxSize.x);
+        if(startNode == null || goalNode == null)
+        {
+            return new List<JumpNode>();
+        }
         VelocityBoundAStar aStar = new VelocityBoundAStar(startNode, goalNode, maxJump);
         return aStar.getPath();
     }

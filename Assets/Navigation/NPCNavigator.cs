@@ -7,7 +7,6 @@ using UnityEngine;
 public class NPCNavigator : MonoBehaviour
 {
     [SerializeField] private Stategy _Strategy = Stategy.TIGHT_JUMP;
-    [SerializeField] private float _MaxDistFromEdge;
     [SerializeField] private bool _ShowGizmos;
     
     [SerializeField] private GameObject target;
@@ -17,13 +16,11 @@ public class NPCNavigator : MonoBehaviour
     private LevelManager levelManager;
     private NPCMovent npcMovement;
     private List<JumpNode> path;
-    private Vector2 lastFirstNodePos = Vector2.positiveInfinity;
     private Vector2 maxJump;
     private Vector2 size;
     private int targetNodeIdx;
     private float maxRunningSpeed;
     
-    private const float minFirstNodeDist = 1;
     private const float jumpPowerAdjustment = 0.05f;
 
     [Serializable] public enum Stategy
@@ -294,8 +291,6 @@ public class NPCNavigator : MonoBehaviour
 
     private void updatePath()
     {
-        if(path != null)
-            lastFirstNodePos = path[0].position;
         path = levelManager.getPath(transform.position, target.transform.position, maxJump, size, npcMovement.getMaxAngle());
         if(path.Count == 0)
         {
