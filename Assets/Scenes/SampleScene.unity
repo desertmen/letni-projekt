@@ -872,7 +872,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _Strategy: 1
   _MaxDistFromEdge: 0.2
-  _ShowGizmos: 0
+  _ShowGizmos: 1
   target: {fileID: 1005262916}
   targetTest: {fileID: 1005262919}
 --- !u!114 &1118000844
@@ -1198,10 +1198,9 @@ MonoBehaviour:
   _ShowJumpNodes: 0
   _ShowHandlesPath: 0
   _MaxHandleJump: 7
+  _GizmoNPC: {fileID: 1118000844}
   startHandle: {x: -12.071967, y: -0.5600027, z: 0}
   goalHandle: {x: 5.886486, y: 2.5042443, z: 0}
-  _MaxAngle: 40
-  _BoundingBoxSize: {x: 0.5, y: 0.5}
   _JumpGenerators:
   - mode: 0
     direction: {x: 1, y: 1}

@@ -51,10 +51,5 @@ public class LevelManagerEditor : Editor
             }
             prevShowTrajectory = levelManager._ShowTrajectories;
         }
-
-        if (GUILayout.Button("Generate JumpMap"))
-        {
-            levelManager.generateJumpMap();
-        }
     }
 }

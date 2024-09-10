@@ -20,7 +20,7 @@ public class NPCMovent : Movement
     private CircleCollider2D collider;
     private State state;
     private Action<Polygon> onLanding = null;
-    private Vector2 slope = Vector2.right;
+    private Vector2 size;
     private Vector2 lastVelocity = Vector2.zero;
     private Polygon currPolygon;
 
@@ -29,7 +29,8 @@ public class NPCMovent : Movement
     {
         state = State.JUMPING;
         body = GetComponent<Rigidbody2D>();
-        collider = GetComponent<CircleCollider2D>();   
+        collider = GetComponent<CircleCollider2D>();
+        size = GetComponent<SpriteRenderer>().bounds.size;
     }
 
     // Update is called once per frame
@@ -62,7 +63,7 @@ public class NPCMovent : Movement
         }
     }
 
-    public Vector2 getSlopeNormal()
+    private Vector2 getSlopeNormal()
     {
         if(currPolygon == null)
         {
@@ -94,19 +95,19 @@ public class NPCMovent : Movement
         return (pos - closest).normalized;
     }
 
-    public Vector2 getSlopeDirRight()
+    private Vector2 getSlopeDirRight()
     {
         Vector2 normal = getSlopeNormal();
         return new Vector2(normal.y, -normal.x);
     }
 
-    public Vector2 getSlopeDirLeft()
+    private Vector2 getSlopeDirLeft()
     {
         Vector2 normal = getSlopeNormal();
         return new Vector2(-normal.y, normal.x);
     }
 
-    public Vector2 getSlopeDirDown()
+    private Vector2 getSlopeDirDown()
     {
         Vector2 normal = getSlopeNormal();
         if(normal.x > 0)
@@ -175,6 +176,16 @@ public class NPCMovent : Movement
         }
     }
 
+    public float getMaxAngle()
+    {
+        return _MaxAngle;
+    }
+
+    public Vector2 getSize()
+    {
+        return size;
+    }
+
     private void OnCollisionExit2D(Collision2D collision)
     {
         if (collision.gameObject.tag.Equals(MyUtils.Constants.Tags.platform))
@@ -189,7 +200,6 @@ public class NPCMovent : Movement
         if (tryChangeState(State.JUMPING))
         {
             body.velocity = jumpVelocity;
-            Debug.Log("Jump velocity: " + jumpVelocity);
         }
     }
 

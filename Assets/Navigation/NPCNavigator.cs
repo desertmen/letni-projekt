@@ -40,8 +40,14 @@ public class NPCNavigator : MonoBehaviour
         npcMovement.setActionOnLanding(onLanding);
         maxJump = npcMovement.getMaxJump();
         maxRunningSpeed = npcMovement.getMaxRunningSpeed();
-        updatePath();
         targetNodeIdx = 0;
+        if(!levelManager.innitNPC(size, npcMovement.getMaxAngle()))
+        {
+            Debug.LogError($"NPC <{gameObject.name}> init failed");
+            enabled = false;
+        }
+        
+        updatePath();
     }
 
     // Update is called once per frame
@@ -180,7 +186,6 @@ public class NPCNavigator : MonoBehaviour
                 float t = size.x * 1.5f / intervalWidth;
                 t = -dir * t + ((dir + 1) / 2f);
                 t = 1 - t;
-                Debug.Log($"jumpstart lerp, l: {leftHit.jumpVelocity}, r:{rightHit.jumpVelocity}, t: {t} = {size.x}/{intervalWidth}");
                 return Vector2.Lerp(leftHit.jumpVelocity, rightHit.jumpVelocity, t);
             }
             else
@@ -194,7 +199,6 @@ public class NPCNavigator : MonoBehaviour
             float intervalWidth = rightHit.position.x - leftHit.position.x;
             int dir = (int)Mathf.Sign(nextNode.position.x - currNode.position.x);                              
             float t = (transform.position.x - dir * size.x / 2f - leftHit.position.x) / intervalWidth;
-            Debug.Log($"interval lerp, l: {-leftHit.impactVelocity}, r:{-rightHit.impactVelocity}, t: {t}");
             return Vector2.Lerp(-leftHit.impactVelocity, -rightHit.impactVelocity, t);
         }
     }
@@ -292,7 +296,7 @@ public class NPCNavigator : MonoBehaviour
     {
         if(path != null)
             lastFirstNodePos = path[0].position;
-        path = levelManager.getPath(transform.position, target.transform.position, maxJump);
+        path = levelManager.getPath(transform.position, target.transform.position, maxJump, size, npcMovement.getMaxAngle());
         if(path.Count == 0)
         {
             targetTest.changePosition();
@@ -313,7 +317,6 @@ public class NPCNavigator : MonoBehaviour
     private void onLanding(Polygon landingPolygon)
     {
         WalkableChunk newWalkableChunk = landingPolygon.getWalkableChunkUnderPoint(transform.position);
-        Debug.Log("WALKABLE CHUNK CANGED, grounded: " + npcMovement.isGrounded());
         currentChunk = newWalkableChunk;
         
         // todo - check underJump / overJump -> change jumpPower of node
@@ -323,7 +326,15 @@ public class NPCNavigator : MonoBehaviour
             JumpNode jumpedFromNode = path[targetNodeIdx - 1];
             JumpNode currNode = path[targetNodeIdx];
 
-            if(currNode.chunk != newWalkableChunk && jumped)
+            bool sameChunk = newWalkableChunk != null && currNode.chunk.positions.Count == newWalkableChunk.positions.Count;
+            int i = 0;
+            while(sameChunk && i < currNode.chunk.positions.Count)
+            {
+                sameChunk = currNode.chunk.positions[i] == newWalkableChunk.positions[i];
+                i++;
+            }
+
+            if (!sameChunk && jumped)
             {
                 int jumpDir = (int)Mathf.Sign(currNode.position.x - jumpedFromNode.position.x);
                 int dirToCurr = (int)Mathf.Sign(currNode.position.x - transform.position.x);
@@ -331,13 +342,13 @@ public class NPCNavigator : MonoBehaviour
                 if(jumpDir != dirToCurr)
                 {
                     jumpedFromNode.removeJumpPower(jumpPowerAdjustment);
-                    Debug.Log("Jump power decreased");
+                    Debug.Log("Jump power decreased " + newWalkableChunk.positions[0] + ", " + currNode.chunk.positions[0]);
                 }
                 // underJump
                 else
                 {
                     jumpedFromNode.addJumpPower(jumpPowerAdjustment);
-                    Debug.Log("Jump power incresed");
+                    Debug.Log("Jump power incresed " + newWalkableChunk.positions[0] + ", " + currNode.chunk.positions[0]);
                 }
             }
         }
