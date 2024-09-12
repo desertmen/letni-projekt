@@ -32,6 +32,7 @@ public class PlayerMovement : MonoBehaviour
     private float direction = 0;
     private float movementTime = 0;
     private float movementTimeMult = 1;
+    private bool touchingPlatform = false;
 
     private float jumpEyeTime;
     private float jumpBufferTime;
@@ -81,7 +82,20 @@ public class PlayerMovement : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        movementTimeMult = 1;
+        if (collision.gameObject.tag.Equals(MyUtils.Constants.Tags.Platform))
+        {
+            movementTimeMult = 1;
+            touchingPlatform = true;
+        }
+    }
+
+    private void OnCollisionStay2D(Collision2D collision)
+    {
+        if (collision.gameObject.tag.Equals(MyUtils.Constants.Tags.Platform))
+        {
+            movementTimeMult = 1;
+            touchingPlatform = true;
+        }
     }
 
     private void OnCollisionExit2D(Collision2D collision)
@@ -99,6 +113,7 @@ public class PlayerMovement : MonoBehaviour
             float maxDist = _JumpEyeFrameTime * _MaxVelocity;
             RaycastHit2D hit = Physics2D.Raycast(start, dir, maxDist, mask);
             jumpEyeTime = 0;
+            touchingPlatform = false;
         }
     }
 
@@ -190,24 +205,9 @@ public class PlayerMovement : MonoBehaviour
         Vector2 velocity = body.velocity;
         float speedPerc = Mathf.Abs(velocity.x) / _MaxVelocity;
 
-        if (Mathf.Abs(body.velocity.x) < _AccelerationCurve.Evaluate(Time.deltaTime) * _MaxVelocity)
+        if (touchingPlatform && !isGrounded())
         {
-            Vector2 extents = boxCollider.bounds.extents;
-            Vector2 pos = transform.position;
-            Vector2 BLcorner = pos - extents;
-            Vector2 BRcorner = pos + new Vector2(extents.x, -extents.y);
-
-            Vector2 start = newDirection > 0 ? BRcorner : BLcorner;
-            Vector2 dir = newDirection > 0 ? Vector2.right : Vector2.left;
-
-            LayerMask mask = 1 << MyUtils.Constants.Layers.Platform;
-            RaycastHit2D hit = Physics2D.Raycast(start, dir, 0.05f, mask);
-
-            if (hit.distance > 0)
-            {
-                body.velocity = new Vector2(0, body.velocity.y);
-                return;
-            }
+            return;
         }
 
         // changed to accelerating

@@ -483,7 +483,7 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   _MaxVelocity: 10
-  _JumpVelocity: 20
+  _JumpVelocity: 18
   _JumpUpGravity: 30
   _JumpDownGravity: 60
   _JumpDownCutoff: 5
