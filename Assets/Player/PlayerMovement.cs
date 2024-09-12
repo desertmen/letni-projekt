@@ -112,7 +112,9 @@ public class PlayerMovement : MonoBehaviour
             LayerMask mask = 1 << MyUtils.Constants.Layers.Platform;
             float maxDist = _JumpEyeFrameTime * _MaxVelocity;
             RaycastHit2D hit = Physics2D.Raycast(start, dir, maxDist, mask);
-            jumpEyeTime = 0;
+            if(hit.distance > 0)
+                jumpEyeTime = 0;
+   
             touchingPlatform = false;
         }
     }
