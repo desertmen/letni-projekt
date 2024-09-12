@@ -111,8 +111,10 @@ public class PlayerMovement : MonoBehaviour
             Vector2 dir = body.velocity.x > 0 ? Vector2.left : Vector2.right;
             LayerMask mask = 1 << MyUtils.Constants.Layers.Platform;
             float maxDist = _JumpEyeFrameTime * _MaxVelocity;
-            RaycastHit2D hit = Physics2D.Raycast(start, dir, maxDist, mask);
-            if(hit.distance > 0)
+            RaycastHit2D hitSide = Physics2D.Raycast(start, dir, maxDist, mask);
+            RaycastHit2D hitSideUp = Physics2D.Raycast(start, dir + Vector2.up, maxDist, mask);
+            
+            if(hitSide.distance > 0 && hitSideUp.distance == 0)
                 jumpEyeTime = 0;
    
             touchingPlatform = false;
@@ -143,6 +145,7 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
+    // TODO - fix wall jumping - try collider cast
     private bool isGrounded()
     {
         if (jumpEyeTime < _JumpEyeFrameTime)
@@ -159,7 +162,8 @@ public class PlayerMovement : MonoBehaviour
         RaycastHit2D hitLeft = Physics2D.Raycast(BLcorner, Vector2.down, 0.05f, mask);
         RaycastHit2D hitRight = Physics2D.Raycast(BRcorner, Vector2.down, 0.05f, mask);
 
-        return hitLeft.collider != null || hitRight.collider != null;
+        Debug.Log(hitLeft.distance + ", " + hitRight.distance  + ", " + (hitLeft.distance > 0) + ", " + (hitRight.distance > 0));
+        return hitLeft.distance > 0 || hitRight.distance > 0;
     }
 
     private bool shouldStop(float direction)
@@ -207,9 +211,23 @@ public class PlayerMovement : MonoBehaviour
         Vector2 velocity = body.velocity;
         float speedPerc = Mathf.Abs(velocity.x) / _MaxVelocity;
 
-        if (touchingPlatform && !isGrounded())
+        if(Mathf.Abs(body.velocity.x) < _AccelerationCurve.Evaluate(Time.deltaTime) * _MaxVelocity)
         {
-            return;
+            Vector2 dir = newDirection > 0 ? Vector2.right : Vector2.left;
+            RaycastHit2D[] hits = new RaycastHit2D[2];
+            boxCollider.Cast(dir, hits, 0.05f);
+
+            Vector2 extents = boxCollider.bounds.extents;
+            Vector2 pos = transform.position;
+            Vector2 BLcorner = pos - extents;
+            Vector2 BRcorner = pos + new Vector2(extents.x, -extents.y);
+
+            if (hits[0].distance > 0)
+            {
+                return;
+            }
+            else if(body.velocity.x == 0)
+                transform.position = new Vector3(transform.position.x, transform.position.y + 0.01f, transform.position.z);
         }
 
         // changed to accelerating
