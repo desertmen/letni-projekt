@@ -13,7 +13,7 @@ public class PolygonReference : MonoBehaviour
 
     private void Start()
     {
-        if (!transform.tag.Equals(MyUtils.Constants.Tags.platform))
+        if (!transform.tag.Equals(MyUtils.Constants.Tags.Platform))
         {
             Debug.LogWarning(gameObject.name + ", does not have tag 'Platform");
         }

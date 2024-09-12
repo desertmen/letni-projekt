@@ -17,7 +17,7 @@ public class NPCMovent : Movement
     [SerializeField][Range(0, 89)] private float _MaxAngle;
 
     private Rigidbody2D body;
-    private CircleCollider2D collider;
+    private CircleCollider2D circleCollider;
     private State state;
     private Action<Polygon> onLanding = null;
     private Action<Polygon> onGrounded = null;
@@ -30,7 +30,7 @@ public class NPCMovent : Movement
     {
         state = State.JUMPING;
         body = GetComponent<Rigidbody2D>();
-        collider = GetComponent<CircleCollider2D>();
+        circleCollider = GetComponent<CircleCollider2D>();
         size = GetComponent<SpriteRenderer>().bounds.size;
     }
 
@@ -70,8 +70,8 @@ public class NPCMovent : Movement
         {
             return Vector2.up;
         }
-        Vector2 pos = collider.bounds.center;
-        Vector2 extents = collider.bounds.extents;
+        Vector2 pos = circleCollider.bounds.center;
+        Vector2 extents = circleCollider.bounds.extents;
         float minDist = float.MaxValue;
         Vector2 closest = Vector2.positiveInfinity;
         for (int i = 0; i < currPolygon.points.Count; i++)
@@ -155,15 +155,16 @@ public class NPCMovent : Movement
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (!(collision.gameObject.tag.Equals(MyUtils.Constants.Tags.platform) &&
+        if (!(collision.gameObject.tag.Equals(MyUtils.Constants.Tags.Platform) &&
               collision.transform.TryGetComponent<PolygonReference>(out PolygonReference polygonReference)))
             return;
 
         currPolygon = polygonReference.polygon;
-        Vector2 pos = collider.bounds.center;
-        int mask = 1 << MyUtils.Constants.Layers.platform;
-        RaycastHit2D hit = Physics2D.Raycast(pos, Vector2.down, collider.bounds.size.y * 2, mask);
+        Vector2 pos = circleCollider.bounds.center;
+        int mask = 1 << MyUtils.Constants.Layers.Platform;
+        RaycastHit2D hit = Physics2D.Raycast(pos, Vector2.down, circleCollider.bounds.size.y * 2, mask);
 
+        // TODO hit.collider != null instead of just hit
         if (hit && hit.transform == collision.transform)
         {
             tryChangeState(State.IDLE);
@@ -176,7 +177,7 @@ public class NPCMovent : Movement
 
     private void OnCollisionStay2D(Collision2D collision)
     {
-        if (!(collision.gameObject.tag.Equals(MyUtils.Constants.Tags.platform) &&
+        if (!(collision.gameObject.tag.Equals(MyUtils.Constants.Tags.Platform) &&
             collision.transform.TryGetComponent<PolygonReference>(out PolygonReference polygonReference)) ||
             state == State.JUMPING)
             return;
@@ -196,7 +197,7 @@ public class NPCMovent : Movement
 
     private void OnCollisionExit2D(Collision2D collision)
     {
-        if (collision.gameObject.tag.Equals(MyUtils.Constants.Tags.platform))
+        if (collision.gameObject.tag.Equals(MyUtils.Constants.Tags.Platform))
         {
             currPolygon = null;
             tryChangeState(State.JUMPING);

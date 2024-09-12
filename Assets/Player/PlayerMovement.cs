@@ -13,6 +13,12 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private AnimationCurve _DeccelerationCurve;
     [SerializeField] private float _MaxVelocity;
     [SerializeField] private float _JumpVelocity;
+    [SerializeField] private float _JumpUpGravity;
+    [SerializeField] private float _JumpDownGravity;
+    [SerializeField] private float _JumpDownCutoff; // what is min velocity.y for jump to be considered going down -> apply _JumpDownGravity
+    [SerializeField] private float _JumpAccelMultiplier; // multiply time when jumping -> slower(< 1)/faster(> 1) acceleration
+    [SerializeField] private float _JumpEyeFrameTime;
+    [SerializeField] private float _JumpBufferTime;
 
     private PlayerControlls playerControlls;
     private BoxCollider2D boxCollider;
@@ -24,7 +30,11 @@ public class PlayerMovement : MonoBehaviour
     private float maxDeccelerationT;
 
     private float direction = 0;
-    private float time = 0;
+    private float movementTime = 0;
+    private float movementTimeMult = 1;
+
+    private float jumpEyeTime;
+    private float jumpBufferTime;
 
     void Awake()
     {
@@ -35,6 +45,8 @@ public class PlayerMovement : MonoBehaviour
         playerControlls = new PlayerControlls();
         maxAccelerationT = _AccelerationCurve.keys.Last().time;
         maxDeccelerationT = _DeccelerationCurve.keys.Last().time;
+        jumpEyeTime = _JumpEyeFrameTime + 1;
+        jumpBufferTime = _JumpBufferTime + 1;
 
         if (_MaxVelocity <= 0)
             _MaxVelocity = 1;
@@ -42,7 +54,12 @@ public class PlayerMovement : MonoBehaviour
 
     void Update()
     {
+        jumpEyeTime += Time.deltaTime;
+        jumpBufferTime += Time.deltaTime;
         float newDirection = moveAction.ReadValue<float>();
+
+        updateGravity();
+        tryBufferJump();
 
         if (shouldStop(newDirection))
             stop(newDirection);
@@ -51,12 +68,6 @@ public class PlayerMovement : MonoBehaviour
 
         direction = newDirection;
     }
-
-    public void OnJump()
-    {
-        body.velocity = new Vector2(body.velocity.x, _JumpVelocity); 
-    }
-
     private void OnEnable()
     {
         moveAction = playerControlls.GamePlay.Move;
@@ -66,6 +77,72 @@ public class PlayerMovement : MonoBehaviour
     private void OnDisable()
     {
         moveAction.Disable();
+    }
+
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        movementTimeMult = 1;
+    }
+
+    private void OnCollisionExit2D(Collision2D collision)
+    {
+        if(collision.gameObject.tag.Equals(MyUtils.Constants.Tags.Platform))
+        {
+            Vector2 extents = boxCollider.bounds.extents;
+            Vector2 pos = transform.position;
+            Vector2 BLcorner = pos - extents;
+            Vector2 BRcorner = pos + new Vector2(extents.x, -extents.y);
+
+            Vector2 start = body.velocity.x > 0 ? BLcorner : BRcorner;
+            Vector2 dir = body.velocity.x > 0 ? Vector2.left : Vector2.right;
+            LayerMask mask = 1 << MyUtils.Constants.Layers.Platform;
+            float maxDist = _JumpEyeFrameTime * _MaxVelocity;
+            RaycastHit2D hit = Physics2D.Raycast(start, dir, maxDist, mask);
+            jumpEyeTime = 0;
+        }
+    }
+
+    public void OnJump()
+    {
+        jumpBufferTime = 0;
+        jump();
+    }
+
+    private void jump()
+    {
+        if (isGrounded())
+        {
+            body.velocity = new Vector2(body.velocity.x, _JumpVelocity);
+            movementTimeMult = _JumpAccelMultiplier;
+            jumpBufferTime = _JumpBufferTime + 1;
+        }
+    }
+
+    private void tryBufferJump()
+    {
+        if (jumpBufferTime < _JumpBufferTime)
+        {
+            jump();
+        }
+    }
+
+    private bool isGrounded()
+    {
+        if (jumpEyeTime < _JumpEyeFrameTime)
+        {
+            return true;
+        }
+
+        Vector2 extents = boxCollider.bounds.extents;
+        Vector2 pos = transform.position;
+        Vector2 BLcorner = pos - extents;
+        Vector2 BRcorner = pos + new Vector2(extents.x, -extents.y);
+
+        LayerMask mask = 1 << MyUtils.Constants.Layers.Platform;
+        RaycastHit2D hitLeft = Physics2D.Raycast(BLcorner, Vector2.down, 0.05f, mask);
+        RaycastHit2D hitRight = Physics2D.Raycast(BRcorner, Vector2.down, 0.05f, mask);
+
+        return hitLeft.collider != null || hitRight.collider != null;
     }
 
     private bool shouldStop(float direction)
@@ -78,24 +155,28 @@ public class PlayerMovement : MonoBehaviour
         return direction != 0f;
     }
 
+    private void updateGravity()
+    {
+        if (body.velocity.y < _JumpDownCutoff)
+            body.gravityScale = _JumpDownGravity / -Physics2D.gravity.y;
+        else
+            body.gravityScale = _JumpUpGravity / -Physics2D.gravity.y;
+    }
+
     private void stop(float newDirection)
     {
         // find where on decceleration curve player is and set it as time
         if(newDirection != direction)
         {
             float speedPerc = Mathf.Abs(body.velocity.x) / _MaxVelocity;
-            time = -maxDeccelerationT + getTimeOnDescendingCurve(speedPerc, _DeccelerationCurve);
+            movementTime = -maxDeccelerationT + getTimeOnDescendingCurve(speedPerc, _DeccelerationCurve);
         }
-        // continue with stopping
-        else
-        {
-            time += Time.deltaTime;
-        }
+        movementTime += Time.deltaTime * movementTimeMult;
 
         float Xvelocity;
-        if(time < 0)
+        if(movementTime < 0)
         {
-            Xvelocity = _DeccelerationCurve.Evaluate(maxDeccelerationT + time) * Mathf.Sign(body.velocity.x) * _MaxVelocity;
+            Xvelocity = _DeccelerationCurve.Evaluate(maxDeccelerationT + movementTime) * Mathf.Sign(body.velocity.x) * _MaxVelocity;
         }
         else
         {
@@ -109,30 +190,46 @@ public class PlayerMovement : MonoBehaviour
         Vector2 velocity = body.velocity;
         float speedPerc = Mathf.Abs(velocity.x) / _MaxVelocity;
 
+        if (Mathf.Abs(body.velocity.x) < _AccelerationCurve.Evaluate(Time.deltaTime) * _MaxVelocity)
+        {
+            Vector2 extents = boxCollider.bounds.extents;
+            Vector2 pos = transform.position;
+            Vector2 BLcorner = pos - extents;
+            Vector2 BRcorner = pos + new Vector2(extents.x, -extents.y);
+
+            Vector2 start = newDirection > 0 ? BRcorner : BLcorner;
+            Vector2 dir = newDirection > 0 ? Vector2.right : Vector2.left;
+
+            LayerMask mask = 1 << MyUtils.Constants.Layers.Platform;
+            RaycastHit2D hit = Physics2D.Raycast(start, dir, 0.05f, mask);
+
+            if (hit.distance > 0)
+            {
+                body.velocity = new Vector2(0, body.velocity.y);
+                return;
+            }
+        }
+
         // changed to accelerating
         if (direction != newDirection && Mathf.Sign(newDirection) == Mathf.Sign(body.velocity.x))
         {
-            time = getTimeOnAscendingCurve(speedPerc, _AccelerationCurve);
+            movementTime = getTimeOnAscendingCurve(speedPerc, _AccelerationCurve);
         }
         // changed to deccelerating
         else if (direction != newDirection)
         {
-            time = -maxDeccelerationT + getTimeOnDescendingCurve(speedPerc, _DeccelerationCurve);
+            movementTime = -maxDeccelerationT + getTimeOnDescendingCurve(speedPerc, _DeccelerationCurve);
         }
-        // no change, continue in movement
-        else
-        {
-            time += Time.deltaTime;
-        }
+        movementTime += Time.deltaTime * movementTimeMult;
 
         float xSpeed;
-        if(time < 0)
+        if(movementTime < 0)
         {
-            xSpeed = _DeccelerationCurve.Evaluate(maxDeccelerationT + time) * -Mathf.Sign(newDirection) * _MaxVelocity;
+            xSpeed = _DeccelerationCurve.Evaluate(maxDeccelerationT + movementTime) * -Mathf.Sign(newDirection) * _MaxVelocity;
         }
-        else if(time < maxAccelerationT)
+        else if(movementTime < maxAccelerationT)
         {
-            xSpeed = _AccelerationCurve.Evaluate(time) * Mathf.Sign(newDirection) * _MaxVelocity;
+            xSpeed = _AccelerationCurve.Evaluate(movementTime) * Mathf.Sign(newDirection) * _MaxVelocity;
         }
         else
         {

@@ -267,9 +267,9 @@ GameObject:
   - component: {fileID: 799909117}
   - component: {fileID: 799909121}
   - component: {fileID: 799909122}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Player
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -299,7 +299,7 @@ Rigidbody2D:
     m_Bits: 0
   m_Interpolate: 0
   m_SleepingMode: 1
-  m_CollisionDetection: 0
+  m_CollisionDetection: 1
   m_Constraints: 4
 --- !u!61 &799909118
 BoxCollider2D:
@@ -407,7 +407,7 @@ Transform:
   m_GameObject: {fileID: 799909116}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -30.08, y: -2.86, z: 0}
+  m_LocalPosition: {x: -13.65, y: -1.76, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -431,20 +431,29 @@ MonoBehaviour:
     - serializedVersion: 3
       time: 0
       value: 0
-      inSlope: 1
-      outSlope: 1
+      inSlope: 11.165255
+      outSlope: 11.165255
       tangentMode: 34
       weightedMode: 0
       inWeight: 0
-      outWeight: 0
+      outWeight: 0.33333334
     - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 1
-      outSlope: 1
-      tangentMode: 34
+      time: 0.049288105
+      value: 0.55031425
+      inSlope: 5.304109
+      outSlope: 9.793182
+      tangentMode: 1
       weightedMode: 0
-      inWeight: 0
+      inWeight: 0.5713619
+      outWeight: 0.08415876
+    - serializedVersion: 3
+      time: 0.2
+      value: 1
+      inSlope: 0.30445963
+      outSlope: 0.30445963
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.2244848
       outWeight: 0
     m_PreInfinity: 2
     m_PostInfinity: 2
@@ -455,14 +464,14 @@ MonoBehaviour:
     - serializedVersion: 3
       time: 0
       value: 1
-      inSlope: -2.5
-      outSlope: -2.5
+      inSlope: -10
+      outSlope: -10
       tangentMode: 34
       weightedMode: 0
       inWeight: 0
       outWeight: 0.33333334
     - serializedVersion: 3
-      time: 0.4
+      time: 0.1
       value: 0
       inSlope: 0
       outSlope: 0
@@ -474,6 +483,13 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   _MaxVelocity: 10
+  _JumpVelocity: 20
+  _JumpUpGravity: 30
+  _JumpDownGravity: 60
+  _JumpDownCutoff: 5
+  _JumpAccelMultiplier: 1
+  _JumpEyeFrameTime: 0.05
+  _JumpBufferTime: 0.1
 --- !u!114 &799909122
 MonoBehaviour:
   m_ObjectHideFlags: 0
