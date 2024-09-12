@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Unity.VisualScripting;
 using UnityEngine;
 
@@ -8,25 +9,33 @@ public class NPCNavigator : MonoBehaviour
 {
     [SerializeField] private Stategy _Strategy = Stategy.TIGHT_JUMP;
     [SerializeField] private bool _ShowGizmos;
-    
-    [SerializeField] private GameObject target;
-    [SerializeField] private TargetTest targetTest;
 
-    private WalkableChunk currentChunk;
     private LevelManager levelManager;
     private NPCMovent npcMovement;
+    private WalkableChunk currentChunk;
     private List<JumpNode> path;
     private Vector2 maxJump;
     private Vector2 size;
+    private Vector2 target;
     private int targetNodeIdx;
     private float maxRunningSpeed;
-    
+    private Action onTargetReached;
+    private Action onLastNodeReached;
+    private Action onPathNotFound;
+    private Action onInitialized;
+    private bool jumped = false;
+    private bool initialized = false;
+    private bool lastNodeReachedCalled = false;
+    [HideInInspector] public bool navigate = false;
+
     private const float jumpPowerAdjustment = 0.05f;
 
     [Serializable] public enum Stategy
     {
-        ANY_JUMP, TIGHT_JUMP
+        MEDIUM_JUMP, TIGHT_JUMP
     }
+
+    //  TODO remove target stuff -> create test NPC behaviour
 
     // Start is called before the first frame update
     void Start()
@@ -35,27 +44,34 @@ public class NPCNavigator : MonoBehaviour
         size = GetComponent<SpriteRenderer>().bounds.size;
         npcMovement = GetComponent<NPCMovent>();
         npcMovement.setActionOnLanding(onLanding);
+        npcMovement.setActionOnGrounded(onGrounded);
         maxJump = npcMovement.getMaxJump();
         maxRunningSpeed = npcMovement.getMaxRunningSpeed();
+        path = new List<JumpNode>();
         targetNodeIdx = 0;
         if(!levelManager.innitNPC(size, npcMovement.getMaxAngle()))
         {
             Debug.LogError($"NPC <{gameObject.name}> init failed");
             enabled = false;
+            return;
         }
-        
-        updatePath();
+        runOnInitialized();
     }
 
     // Update is called once per frame
     void Update()
     {
-        followPath();
+        // if on initialized is called after start
+        if (!initialized)
+            runOnInitialized();
+
+        if(navigate)
+            followPath();
     }
 
     private void OnDrawGizmos()
     {
-        if(path != null && _ShowGizmos)
+        if(path != null && path.Count > 1 && _ShowGizmos)
         {
             Gizmos.color = Color.red;
             Gizmos.DrawSphere(path[targetNodeIdx].position, 0.2f);
@@ -70,7 +86,42 @@ public class NPCNavigator : MonoBehaviour
         }
     }
 
-    private bool jumped = false;
+    /// <summary>
+    /// action is called when NPCNavigator is initialized, or first time this function is called.
+    /// This is needed, becouse of Start() order unpredictability.
+    /// </summary>
+    public void setOnInitialized(Action action)
+    {
+        onInitialized = action;
+    }
+
+    public void goToPosition(Vector2 target)
+    {
+        this.target = target;
+        navigate = true;
+        updatePath();
+    }
+
+    public void setOnPathNotFound(Action action)
+    {
+        onPathNotFound = action;
+    }
+
+    public void setOnLastNodeReached(Action action)
+    {
+        onLastNodeReached = action;
+    }
+
+    public void setOnTargetReached(Action action)
+    {
+        onTargetReached = action;
+    }
+
+    public float getMaxRunningSpeed()
+    {
+        return maxRunningSpeed;
+    }
+
     private void followPath()
     {
         if (!npcMovement.isGrounded())
@@ -80,13 +131,8 @@ public class NPCNavigator : MonoBehaviour
         
         if (reachedLastNode())
         {
-            onTargetReached();
-            return;
-        }
-
-        if(targetNodeIdx >= path.Count)
-        {
-            updatePath();
+            callOnTargetNodeReached();
+            goTowardsTarget();
             return;
         }
 
@@ -124,9 +170,47 @@ public class NPCNavigator : MonoBehaviour
         }
     }
 
+    private void goTowardsTarget()
+    {
+        if (canWalkToTarget())
+        {
+            if (isPointsUnderOrOverBBox(target))
+                callOnTargetReached();
+            else
+                goTowardsPoint(target);
+        }
+        else
+        {
+            Vector2 edge = getChunkEdgeClosestToPoint(target);
+            if (isPointsUnderOrOverBBox(edge))
+                callOnTargetReached();
+            else
+                goTowardsPoint(edge);
+        }
+    }
+
+    private void goTowardsPoint(Vector2 pos)
+    {
+        int dir = (int)Mathf.Sign(pos.x - transform.position.x);
+        if (dir == MyUtils.Constants.RIGHT)
+        {
+            npcMovement.startGoingRight();
+        }
+        else
+        {
+            npcMovement.startGoingLeft();
+        }
+    }
+
+    private bool canWalkToTarget()
+    {
+        JumpNode lastNode = path.Last();
+        return MyUtils.Math.isPointInClosedInterval((lastNode.chunk.positions.First().x, lastNode.chunk.positions.Last().x), target.x);
+    }
+
     private bool reachedLastNode()
     {
-        return path != null && targetNodeIdx == path.Count - 1 && (path[path.Count - 1].chunk == currentChunk || isPointsUnderBBox(path[path.Count - 1].position));
+        return path != null && targetNodeIdx == path.Count - 1 && (path[path.Count - 1].chunk == currentChunk || isPointsUnderOrOverBBox(path[path.Count - 1].position));
     }
 
     private bool isNotOnPath(JumpNode currNode)
@@ -162,7 +246,7 @@ public class NPCNavigator : MonoBehaviour
     {
         switch(_Strategy)
         {
-            case Stategy.ANY_JUMP:
+            case Stategy.MEDIUM_JUMP:
                 return getJumpVelocityFromStategy_ANY_JUMP(currNode, nextNode);
             case Stategy.TIGHT_JUMP:
                 return getJumpVelocityFromStategy_TIGHT_JUMP(currNode, nextNode);
@@ -237,7 +321,7 @@ public class NPCNavigator : MonoBehaviour
         
         if (isNodeJumpStart(currNode))
         {
-            if (isPointsUnderBBox(currNode.info.jumpStart))
+            if (isPointsUnderOrOverBBox(currNode.info.jumpStart))
                 return true;
             return false;
         }
@@ -245,7 +329,7 @@ public class NPCNavigator : MonoBehaviour
         {
             switch (_Strategy)
             {
-                case Stategy.ANY_JUMP:
+                case Stategy.MEDIUM_JUMP:
                     // is box inside hit interval
                     return shouldJumpWithStategy_ANY_JUMP(currNode);
                 case Stategy.TIGHT_JUMP:
@@ -261,9 +345,10 @@ public class NPCNavigator : MonoBehaviour
         Tuple<JumpHit, JumpHit> interval = currNode.info.hitInterval;
         (JumpHit leftHit, JumpHit rightHit) = MyUtils.Math.getMinMax<JumpHit>(interval.Item1, interval.Item2, (hit) => hit.position.x);
         float pos = transform.position.x;
-        bool isInInterval = MyUtils.Math.isPointInClosedInterval((interval.Item1.position.x, interval.Item2.position.x), transform.position.x);
+        bool isInInterval = MyUtils.Math.isPointInClosedInterval((leftHit.position.x + size.x /2f, rightHit.position.x - size.x /2f), transform.position.x) || 
+            (rightHit.position.x - leftHit.position.x < size.x && MyUtils.Math.isPointInClosedInterval((leftHit.position.x, rightHit.position.x), transform.position.x));
         JumpHit targetHit = nextNode.position.x - currNode.position.x > 0 ? rightHit : leftHit;
-        return isInInterval && Mathf.Abs(targetHit.position.x - pos) < size.x / 2f;
+        return isInInterval && Mathf.Abs(targetHit.position.x - pos) < size.x / 2f + 0.1f;
     }
 
     private bool shouldJumpWithStategy_ANY_JUMP(JumpNode currNode)
@@ -272,12 +357,27 @@ public class NPCNavigator : MonoBehaviour
         return MyUtils.Math.isPointInClosedInterval((interval.Item1.position.x, interval.Item2.position.x), transform.position.x);
     }
 
-    private bool isPointsUnderBBox(Vector2 position)
+    private bool isPointUnderBBox(Vector2 position)
     {
         float left = transform.position.x - size.x/2f;
         float right = transform.position.x + size.x/2f;
         return position.y <= transform.position.y && left <= position.x && position.x <= right;
     }
+
+    private bool isPointsUnderOrOverBBox(Vector2 position)
+    {
+        float left = transform.position.x - size.x / 2f;
+        float right = transform.position.x + size.x / 2f;
+        return left <= position.x && position.x <= right;
+    }
+
+    private Vector2 getChunkEdgeClosestToPoint(Vector2 position)
+    {
+        JumpNode lastNode = path.Last();
+        (Vector2 left, Vector2 right) = MyUtils.Math.getMinMax<Vector2>(lastNode.chunk.positions.First(), lastNode.chunk.positions.Last(), (vec) => vec.x);
+        return Vector2.Distance(position,left) < Vector2.Distance(position, right) ? left : right;
+    }
+
 
     private bool isNodeJumpStart(JumpNode node)
     {
@@ -291,22 +391,50 @@ public class NPCNavigator : MonoBehaviour
 
     private void updatePath()
     {
-        path = levelManager.getPath(transform.position, target.transform.position, maxJump, size, npcMovement.getMaxAngle());
+        if(npcMovement == null)
+        {
+            Debug.LogError("Update path called before initialization, use setOnInitialized() to call funtion right after initialization");
+            return;
+        }
+        path = levelManager.getPath(transform.position, target, maxJump, size, npcMovement.getMaxAngle());
         if(path.Count == 0)
         {
-            targetTest.changePosition();
-            updatePath();
+            callOnPathNotFound();
             return;
         }
         // path should start on same chunk as box
         targetNodeIdx = 0;
         currentChunk = path[0].chunk;
+        lastNodeReachedCalled = false;
     }
 
-    private void onTargetReached()
+    private void runOnInitialized()
     {
-        targetTest.changePosition();
-        updatePath();
+        if (onInitialized != null)
+        {
+            onInitialized();
+            initialized = true;
+        }
+    }
+
+    private void callOnPathNotFound()
+    {
+        if(onPathNotFound != null)
+            onPathNotFound();
+    }
+
+    private void callOnTargetReached()
+    {
+        npcMovement.stopMoving();
+        if(onTargetReached != null)
+            onTargetReached();
+    }
+
+    private void callOnTargetNodeReached()
+    {
+        if(onLastNodeReached != null && lastNodeReachedCalled == false)
+            onLastNodeReached();
+        lastNodeReachedCalled = true;
     }
 
     private void onLanding(Polygon landingPolygon)
@@ -314,7 +442,6 @@ public class NPCNavigator : MonoBehaviour
         WalkableChunk newWalkableChunk = landingPolygon.getWalkableChunkUnderPoint(transform.position);
         currentChunk = newWalkableChunk;
         
-        // todo - check underJump / overJump -> change jumpPower of node
         // targetNodeIdx - 1, becouse +1 after jump
         if(path != null && targetNodeIdx > 0)
         {
@@ -337,26 +464,24 @@ public class NPCNavigator : MonoBehaviour
                 if(jumpDir != dirToCurr)
                 {
                     jumpedFromNode.removeJumpPower(jumpPowerAdjustment);
-                    Debug.Log("Jump power decreased " + newWalkableChunk.positions[0] + ", " + currNode.chunk.positions[0]);
+                    Debug.Log("Jump power decreased " + jumpedFromNode.getJumpPower());
                 }
                 // underJump
                 else
                 {
                     jumpedFromNode.addJumpPower(jumpPowerAdjustment);
-                    Debug.Log("Jump power incresed " + newWalkableChunk.positions[0] + ", " + currNode.chunk.positions[0]);
+                    Debug.Log("Jump power increased " + jumpedFromNode.getJumpPower());
                 }
             }
         }
     }
 
-    public void onTargetChunkChange()
+    private void onGrounded(Polygon touchingPolygon)
     {
-
+        if(currentChunk == null)
+        {
+            WalkableChunk newWalkableChunk = touchingPolygon.getWalkableChunkUnderPoint(transform.position);
+            currentChunk = newWalkableChunk;
+        }
     }
-
-    public float getMaxRunningSpeed()
-    {
-        return maxRunningSpeed;
-    }
-
 }

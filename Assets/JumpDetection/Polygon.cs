@@ -111,7 +111,6 @@ public class Polygon
         return getEdgeBoxIsOn(boxCenter, boxSize) != null;
     }
 
-    // TODO - make better lul - follow tutorials idea and move small circle collider
     public WalkableChunk getWalkableChunkUnderPoint(Vector2 position)
     {
         float minDist = float.MaxValue;

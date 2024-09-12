@@ -32,11 +32,13 @@ public class JumpNode : IAStarNode<JumpNode>
     public void addJumpPower(float power)
     {
         jumpPower += power;
+        jumpPower = Mathf.Clamp(jumpPower, 0.1f, 2);
     }
 
     public void removeJumpPower(float power)
     {
         jumpPower -= power;
+        jumpPower = Mathf.Clamp(jumpPower, 0.1f, 2);
     }
 
     public float getJumpPower()

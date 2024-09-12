@@ -20,6 +20,7 @@ public class NPCMovent : Movement
     private CircleCollider2D collider;
     private State state;
     private Action<Polygon> onLanding = null;
+    private Action<Polygon> onGrounded = null;
     private Vector2 size;
     private Vector2 lastVelocity = Vector2.zero;
     private Polygon currPolygon;
@@ -122,7 +123,6 @@ public class NPCMovent : Movement
 
     private void move()
     { 
-        // TODO - make npc walk on slopes
         float time = Time.deltaTime;
         float speed, speedChange;
         switch(state)
@@ -164,8 +164,6 @@ public class NPCMovent : Movement
         int mask = 1 << MyUtils.Constants.Layers.platform;
         RaycastHit2D hit = Physics2D.Raycast(pos, Vector2.down, collider.bounds.size.y * 2, mask);
 
-        // TODO - add maxWalkableAngle
-        //            raycast hits correct polygon
         if (hit && hit.transform == collision.transform)
         {
             tryChangeState(State.IDLE);
@@ -174,6 +172,16 @@ public class NPCMovent : Movement
                 onLanding(polygonReference.polygon);
             }
         }
+    }
+
+    private void OnCollisionStay2D(Collision2D collision)
+    {
+        if (!(collision.gameObject.tag.Equals(MyUtils.Constants.Tags.platform) &&
+            collision.transform.TryGetComponent<PolygonReference>(out PolygonReference polygonReference)) ||
+            state == State.JUMPING)
+            return;
+        if(onGrounded != null)
+            onGrounded(polygonReference.polygon);
     }
 
     public float getMaxAngle()
@@ -240,6 +248,12 @@ public class NPCMovent : Movement
         onLanding = action;
     }
 
+    public void setActionOnGrounded(Action<Polygon> action)
+    {
+        onGrounded = action;
+    }
+
+    
     public Vector2 getMaxJump() { return _MaxJump; }
     public float getMaxRunningSpeed() { return _MaxRunSpeed; }
 }

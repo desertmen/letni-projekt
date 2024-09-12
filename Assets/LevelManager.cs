@@ -62,9 +62,6 @@ public class LevelManager : MonoBehaviour
         drawPathBetweenHandles(gizmoJumpMap, gizmoBBoxSize, _GizmoNPC.getMaxJump());
     }
 
-    // TODO - dictionary of jumpmaps based on maxAngle
-    //      - add function to generate map when npc finds level Manager
-    
     public bool innitNPC(Vector2 boundingBoxSize, float maxAngle)
     {
         if (boundingBoxSize.x <= 0)
