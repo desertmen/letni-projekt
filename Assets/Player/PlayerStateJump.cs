@@ -35,15 +35,26 @@ public class PlayerStateJump : PlayerState
 
     private void jump()
     {
-            body.velocity = new Vector2(body.velocity.x, stateMachine.getJumpVelocity());
+        body.velocity = new Vector2(body.velocity.x, stateMachine.getJumpVelocity());
     }
 
     private void tryJump()
     {
+        if (stateMachine.getJumpCount() <= 0)
+            return;
+
         if (stateMachine.isGrounded())
         {
             jump();
+            stateMachine.resetJumpsUsed();
+            stateMachine.resetDashesUsed();
+            stateMachine.addJumpUsed();
             jumped = true;
+        }
+        else if (stateMachine.getJumpsUsed() < stateMachine.getJumpCount())
+        {
+            jump();
+            stateMachine.addJumpUsed();
         }
         else
         {

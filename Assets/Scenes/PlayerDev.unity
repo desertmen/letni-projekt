@@ -536,8 +536,10 @@ MonoBehaviour:
   _JumpAccelMultiplier: 1
   _JumpEyeFrameTime: 0.05
   _JumpBufferTime: 0.05
+  _JumpCount: 2
   _DashVelocity: 30
   _DashDuration: 0.2
+  _DashCount: 2
 --- !u!1 &1105507797
 GameObject:
   m_ObjectHideFlags: 0

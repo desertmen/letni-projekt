@@ -14,10 +14,18 @@ public class PlayerStateDash : PlayerState
 
     public override void enter()
     {
-        velocity = Vector2.right * stateMachine.getForwardDir() * stateMachine.getDashVelocity();
-        duration = stateMachine.getDashDuration();
-
-        body.velocity = velocity;
+        if(stateMachine.getDashesUsed() < stateMachine.getDashCount())
+        {
+            stateMachine.addDashUsed();
+            velocity = Vector2.right * stateMachine.getForwardDir() * stateMachine.getDashVelocity();
+            duration = stateMachine.getDashDuration();
+            body.velocity = velocity;
+        }
+        else if (stateMachine.getDashCount() > 0 && stateMachine.isGrounded())
+        {
+            stateMachine.resetDashesUsed();
+            enter();
+        }
     }
 
     public override void exit()

@@ -15,8 +15,10 @@ public class PlayerStateMachine : MonoBehaviour
     [SerializeField] private float _JumpAccelMultiplier; // multiply time when jumping -> slower(< 1)/faster(> 1) acceleration
     [SerializeField] private float _JumpEyeFrameTime;
     [SerializeField] private float _JumpBufferTime;
+    [SerializeField] private int _JumpCount;
     [SerializeField] private float _DashVelocity;
     [SerializeField] private float _DashDuration;
+    [SerializeField] private int _DashCount;
 
     private PlayerControlls playerControlls;
     private InputAction moveAction;
@@ -27,10 +29,12 @@ public class PlayerStateMachine : MonoBehaviour
     public PlayerStateDash dashState { get; private set; }
     private PlayerState currentState;
 
-    private int forwardDirection = MyUtils.Constants.RIGHT;
+    private int forwardDirection = MyUtils.Constants.RIGHT; 
     private BoxCollider2D boxCollider;
     private Rigidbody2D body;
     private float jumpEyeTime;
+    private int dashesUsed = 0;
+    private int jumpsUsed = 0;
 
     private void Update()
     {
@@ -141,6 +145,14 @@ public class PlayerStateMachine : MonoBehaviour
         currentState = state;
         currentState.enter();
     }
+    public void addDashUsed() { dashesUsed++; }
+    public void addJumpUsed() { jumpsUsed++; }
+    public void resetDashesUsed() { dashesUsed = 0; }
+    public void resetJumpsUsed() { jumpsUsed = 0; }
+    public int getDashesUsed() { return dashesUsed; }
+    public int getJumpsUsed() { return jumpsUsed; }
+    public int getJumpCount() { return _JumpCount; }
+    public int getDashCount() { return _DashCount; }
     public float getDashVelocity() { return _DashVelocity; }
     public float getDashDuration() { return _DashDuration; }
     public float getForwardDir() { return forwardDirection; }
